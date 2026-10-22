@@ -172,8 +172,8 @@ export default function QuickLogPage() {
 
           <div>
             <label className="flex items-center justify-between text-xs font-semibold text-zinc-300">
-              <span>Υποκειμενική Ένταση (RPE 1-10)</span>
-              <span className="text-emerald-400">{rpe}/10</span>
+              <span>Πόσο κουράστηκες; (1 = Πανεύκολα, 10 = Πολύ)</span>
+              <span className="font-bold text-emerald-400">{rpe}/10</span>
             </label>
             <input
               type="range"

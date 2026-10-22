@@ -2,8 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/*
+ * KINESIS AWARDED CIRCADIAN DESIGN SYSTEM
+ * ---------------------------------------
+ * 1. Night Mode (Default / .dark): "Deep Circadian Pine & Bioluminescent Sage"
+ *     avoids pitch-black #000000 halation, using soothing deep slate-pine tones (#11191D & #182329).
+ * 2. Day Mode (.light): "Warm Nordic Paper, Oatmeal Stone & Eucalyptus"
+ *    avoids blinding #FFFFFF glare, using warm alabaster/sand stone (#F4F1EA & #FFFFFF) and deep forest ink.
+ */
+
+:root,
+html.dark {
   color-scheme: dark;
+
+  /* Night Surfaces & Ink (Soft Deep Circadian Slate) */
+  --c-zinc-950: 16 24 28;    /* #10181C - Restful deep slate background */
+  --c-zinc-900: 24 35 41;    /* #182329 - Elevated card surface */
+  --c-zinc-800: 36 51 59;    /* #24333B - Subtle borders & secondary pills */
+  --c-zinc-700: 52 72 82;    /* #344852 - Interactive borders */
+  --c-zinc-600: 82 104 114;  /* #526872 */
+  --c-zinc-500: 118 140 148; /* #768C94 */
+  --c-zinc-400: 152 172 178; /* #98ACB2 - Comfortable muted text */
+  --c-zinc-300: 194 209 213; /* #C2D1D5 - Soft body text */
+  --c-zinc-200: 218 228 230; /* #DAE4E6 */
+  --c-zinc-100: 235 241 242; /* #EBF1F2 - Primary heading ink */
+  --c-zinc-50: 246 249 249;  /* #F6F9F9 - Crisp warm alabaster */
+
+  /* Night Sage-Emerald Accents (Soothing, Non-Neon) */
+  --c-emerald-500: 22 185 138; /* #16B98A - Primary action sage-emerald */
+  --c-emerald-400: 56 211 164; /* #38D3A4 - Readable accent text */
+  --c-emerald-300: 110 231 190;
+  --c-emerald-200: 167 243 214;
+  --c-emerald-100: 209 250 233;
+
+  /* Night Warm Amber / Terracotta Protection Alerts */
+  --c-amber-500: 245 158 11;
+  --c-amber-400: 251 191 36;
+  --c-amber-300: 252 211 77;
+  --c-amber-200: 253 230 138;
+  --c-amber-100: 254 243 199;
+
+  --k-shadow-card: 0 12px 32px -8px rgba(0, 0, 0, 0.38);
+  --k-range-track: #24333b;
+  --k-range-thumb: #16b98a;
+  --k-range-border: #10181c;
+}
+
+html.light {
+  color-scheme: light;
+
+  /* Day Surfaces & Ink (Warm Nordic Oatmeal Stone & Crisp Forest Ink) */
+  --c-zinc-950: 243 240 232; /* #F3F0E8 - Warm paper/stone background (zero eye strain) */
+  --c-zinc-900: 252 251 248; /* #FCFBF8 - Soft warm ivory card surface */
+  --c-zinc-800: 225 220 209; /* #E1DCD1 - Soft warm stone border & subtle surface */
+  --c-zinc-700: 201 194 181; /* #C9C2B5 - Defined interactive border */
+  --c-zinc-600: 142 152 148;
+  --c-zinc-500: 102 117 112; /* #667570 - Muted caption text */
+  --c-zinc-400: 78 94 89;    /* #4E5E59 - Secondary label text */
+  --c-zinc-300: 52 68 63;    /* #34443F - Comfortable body text */
+  --c-zinc-200: 36 51 46;    /* #24332E */
+  --c-zinc-100: 23 36 32;    /* #172420 - Primary heading ink */
+  --c-zinc-50: 15 26 23;     /* #0F1A17 - Deepest forest charcoal */
+
+  /* Day Eucalyptus & Deep Sage Accents (High-Contrast AAA on Ivory) */
+  --c-emerald-500: 15 138 99;  /* #0F8A63 - Rich eucalyptus button fill */
+  --c-emerald-400: 11 112 80;  /* #0B7050 - Crisp sage accent text on light cards */
+  --c-emerald-300: 9 94 67;    /* #095E43 */
+  --c-emerald-200: 8 79 56;    /* #084F38 */
+  --c-emerald-100: 6 64 45;    /* #06402D */
+
+  /* Day Warm Ochre / Terracotta Alerts */
+  --c-amber-500: 217 119 6;
+  --c-amber-400: 180 83 9;
+  --c-amber-300: 146 64 14;
+  --c-amber-200: 120 53 15;
+  --c-amber-100: 96 42 12;
+
+  --k-shadow-card: 0 10px 28px -6px rgba(23, 36, 32, 0.07);
+  --k-range-track: #ded8cc;
+  --k-range-thumb: #0f8a63;
+  --k-range-border: #fcfbf8;
 }
 
 html {
@@ -14,13 +92,25 @@ html {
 }
 
 body {
-  background-color: #09090b;
-  color: #f4f4f5;
+  background-color: rgb(var(--c-zinc-950));
+  color: rgb(var(--c-zinc-100));
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Ensure primary emerald-500 buttons always have crisp white/light text in Day Mode and dark ink in Night Mode */
+html.light .bg-emerald-500 {
+  color: #ffffff !important;
+}
+
+/* Soft elevated card shadows */
+.shadow-lg,
+.shadow-2xl {
+  box-shadow: var(--k-shadow-card) !important;
 }
 
 /* Hide horizontal scrollbar on mobile category pills while keeping touch scroll */
@@ -43,17 +133,17 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-runnable-track {
   height: 10px;
   border-radius: 9999px;
-  background: #27272a;
+  background: var(--k-range-track);
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   margin-top: -7px;
-  background-color: #10b981;
+  background-color: var(--k-range-thumb);
   height: 24px;
   width: 24px;
   border-radius: 9999px;
-  border: 2px solid #09090b;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);
+  border: 2px solid var(--k-range-border);
+  box-shadow: 0 0 0 3px rgba(22, 185, 138, 0.25);
 }

@@ -9,11 +9,14 @@ import {
   Laptop,
   Link2,
   Lock,
+  Moon,
   PlusSquare,
   RefreshCw,
   Share,
   Smartphone,
+  Sun,
   X,
+  Zap,
 } from 'lucide-react';
 import {
   createCrossDeviceSyncLink,
@@ -24,6 +27,7 @@ import {
   setPersonalSyncKey,
 } from '@/lib/storage/cloudSync';
 import { importDatabaseJson } from '@/lib/storage/db';
+import { applyThemeToDocument, getInitialTheme, ThemeMode } from './Navigation';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -36,6 +40,7 @@ export default function InstallPwaPrompt() {
   const [isIos, setIsIos] = useState<boolean>(false);
   const [showInstallModal, setShowInstallModal] = useState<boolean>(false);
   const [showSyncModal, setShowSyncModal] = useState<boolean>(false);
+  const [theme, setTheme] = useState<ThemeMode>('dark');
 
   const [syncKey, setSyncKey] = useState<string>('');
   const [inputSyncKey, setInputSyncKey] = useState<string>('');
@@ -48,6 +53,13 @@ export default function InstallPwaPrompt() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    setTheme(getInitialTheme());
+    const onThemeChange = (e: Event) => {
+      const custom = e as CustomEvent<ThemeMode>;
+      if (custom.detail) setTheme(custom.detail);
+    };
+    window.addEventListener('kinesis-theme-change', onThemeChange);
 
     const currentKey = getPersonalSyncKey();
     setSyncKey(currentKey);
@@ -72,7 +84,7 @@ export default function InstallPwaPrompt() {
             const cleanUrl = window.location.pathname;
             window.history.replaceState({}, '', cleanUrl);
             setAutoRestoredBanner(
-              'Η πρόοδός σου συγχρονίστηκε αυτόματα σε αυτή τη συσκευή! Μπορείς να συνεχίσεις ακριβώς από εκεί που έμεινες.'
+              'Η πρόοδός σου συγχρονίστηκε αυτόματα! Συνεχίζεις ακριβώς από εκεί που έμεινες.'
             );
             window.dispatchEvent(new Event('kinesis-sync-restored'));
           })
@@ -117,10 +129,17 @@ export default function InstallPwaPrompt() {
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
+      window.removeEventListener('kinesis-theme-change', onThemeChange);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
+
+  const toggleTheme = () => {
+    const next: ThemeMode = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    applyThemeToDocument(next);
+  };
 
   const handleInstallClick = async () => {
     if (deferredPrompt) {
@@ -213,7 +232,7 @@ export default function InstallPwaPrompt() {
   return (
     <>
       {autoRestoredBanner && (
-        <div className="mb-3 flex items-center justify-between gap-2 rounded-2xl border border-emerald-500/50 bg-emerald-500/20 px-4 py-3 text-xs font-semibold text-emerald-100 shadow-lg">
+        <div className="mb-3 flex items-center justify-between gap-2 rounded-2xl border border-emerald-500/50 bg-emerald-500/15 px-4 py-3 text-xs font-semibold text-zinc-100 shadow-lg">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
             <span>{autoRestoredBanner}</span>
@@ -221,51 +240,77 @@ export default function InstallPwaPrompt() {
           <button
             type="button"
             onClick={() => setAutoRestoredBanner(null)}
-            className="rounded-lg p-1 text-emerald-200 hover:bg-emerald-500/20"
+            className="rounded-lg p-1 text-zinc-300 hover:bg-emerald-500/20"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
       )}
 
-      {/* Responsive Top Action Bar: Cross-Device Sync + Mobile Install */}
-      <div className="mb-4 flex flex-col justify-between gap-2.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 sm:flex-row sm:items-center sm:px-4">
+      {/* Sleek Top Utility Bar: Brand (Mobile), Eye-Comfort Day/Night, Cross-Device Sync & Install */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-800/90 bg-zinc-900/95 px-3.5 py-2.5 shadow-sm">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
-            <Laptop className="h-4 w-4" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-zinc-950 shadow-sm">
+            <Zap className="h-4 w-4 fill-current" />
           </div>
           <div className="text-xs">
-            <span className="font-bold text-zinc-100">
-              Συνέχεια σε Κινητό & Υπολογιστή • 100% Ιδιωτικά
-            </span>
-            <p className="text-[11px] text-zinc-300">
-              Κωδικός Συσκευών σου: <strong className="font-mono text-emerald-300">{syncKey || '...'}</strong>{' '}
-              — Άνοιξέ το σε PC ή κινητό χωρίς να χάνεις την πρόοδό σου.
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold tracking-tight text-zinc-50">
+                KINESIS <span className="text-emerald-400">5K</span>
+              </span>
+              <span className="hidden rounded-md bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-400 sm:inline-block">
+                {syncKey || '...'}
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-400">
+              Ξεκούραστη ανάγνωση μέρα & νύχτα • Συνέχεια σε Κινητό & PC
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Eye-Comfort Day / Night Switcher (Always accessible on Mobile & Desktop) */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-zinc-200 transition hover:border-emerald-500/40 active:scale-95"
+            title="Εναλλαγή Παλέτας Ημέρας / Νύχτας (Ξεκούραστη για τα μάτια)"
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="h-3.5 w-3.5 text-amber-400" />
+                <span>Μέρα</span>
+              </>
+            ) : (
+              <>
+                <Moon className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Νύχτα</span>
+              </>
+            )}
+          </button>
+
+          {/* Cross-Device Sync Button */}
           <button
             type="button"
             onClick={() => {
               setSyncStatus(null);
               setShowSyncModal(true);
             }}
-            className="inline-flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-xl border border-emerald-500/40 bg-zinc-900/90 px-3 py-2 text-xs font-bold text-emerald-300 transition hover:bg-zinc-900 active:scale-95"
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/20 active:scale-95"
           >
-            <RefreshCw className="h-3.5 w-3.5 text-emerald-400" />
-            Κινητό ↔ PC (Sync)
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>Κινητό ↔ PC</span>
           </button>
 
+          {/* Mobile App Install Button */}
           {!isStandalone && (
             <button
               type="button"
               onClick={handleInstallClick}
-              className="inline-flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-zinc-950 shadow-md shadow-emerald-500/20 transition active:scale-95"
+              className="inline-flex min-h-[38px] items-center gap-1 rounded-xl bg-emerald-500 px-2.5 py-1.5 text-xs font-bold text-zinc-950 shadow-sm transition active:scale-95"
             >
               <Download className="h-3.5 w-3.5" />
-              Στο Κινητό
+              <span className="hidden xs:inline sm:inline">Εφαρμογή</span>
             </button>
           )}
         </div>
@@ -273,13 +318,13 @@ export default function InstallPwaPrompt() {
 
       {/* CROSS-DEVICE SYNC MODAL (Mobile <-> PC without losing progress) */}
       {showSyncModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/90 p-3 sm:p-4 backdrop-blur-md overflow-y-auto">
-          <div className="w-full max-w-lg space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6 shadow-2xl my-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-zinc-950/90 p-3 backdrop-blur-md sm:p-4">
+          <div className="my-auto w-full max-w-lg space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 shadow-2xl sm:p-6">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2 text-emerald-400">
                 <Laptop className="h-5 w-5 shrink-0" />
                 <h3 className="text-base font-bold text-zinc-50">
-                  Συγχρονισμός Κινητού & Υπολογιστή (Χωρίς Απώλεια Προόδου)
+                  Συνέχεια σε Κινητό & Υπολογιστή (Χωρίς Απώλεια Προόδου)
                 </h3>
               </div>
               <button
@@ -292,17 +337,17 @@ export default function InstallPwaPrompt() {
             </div>
 
             <p className="text-xs leading-relaxed text-zinc-300">
-              Επειδή το KINESIS προστατεύει την ιδιωτικότητά σου (ώστε αν δώσεις το βασικό link σε
-              φίλο να μη βλέπει τα δικά σου στατιστικά), μπορείς να συνδέσεις <strong>το δικό σου κινητό</strong>{' '}
-              με <strong>τον δικό σου υπολογιστή</strong> με 2 πανεύκολους τρόπους:
+              Το KINESIS κρατάει τα δεδομένα σου 100% ιδιωτικά (ώστε αν κάποιος άλλος ανοίξει το
+              βασικό link να μη βλέπει τα στατιστικά σου). Για να συνδέσεις <strong>το δικό σου κινητό</strong>{' '}
+              με <strong>τον δικό σου υπολογιστή</strong>, διάλεξε όποιον τρόπο σε βολεύει:
             </p>
 
             {syncStatus && (
               <div
                 className={`rounded-xl border p-3 text-xs font-medium ${
                   syncStatus.type === 'success'
-                    ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200'
-                    : 'border-amber-500/40 bg-amber-500/15 text-amber-200'
+                    ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                    : 'border-amber-500/40 bg-amber-500/15 text-amber-300'
                 }`}
               >
                 {syncStatus.text}
@@ -313,12 +358,11 @@ export default function InstallPwaPrompt() {
             <div className="space-y-2.5 rounded-xl border border-emerald-500/35 bg-zinc-950 p-4">
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
                 <Link2 className="h-4 w-4" />
-                <span>Τρόπος 1 (Πιο Γρήγορος): Προσωπικό Magic Link με 1 Κλικ</span>
+                <span>Τρόπος 1 (Με 1 Κλικ): Προσωπικό Link Μεταφοράς</span>
               </div>
               <p className="text-xs text-zinc-300">
-                Αντιγράφει ένα ειδικό προσωπικό link που περιέχει κρυπτογραφημένη την πρόοδό σου.
-                Στείλ&apos; το στον εαυτό σου (Viber, Messenger, Email) και μόλις το πατήσεις στον
-                υπολογιστή ή στο κινητό σου, μεταφέρονται όλα αυτόματα!
+                Αντιγράφει ένα προσωπικό link που μεταφέρει όλη την πρόοδό σου. Στείλ&apos; το στον
+                εαυτό σου (Viber, Messenger, Email) και πάτησέ το στον υπολογιστή ή στο κινητό σου!
               </p>
               <button
                 type="button"
@@ -326,7 +370,7 @@ export default function InstallPwaPrompt() {
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-xs font-bold text-zinc-950 shadow-md shadow-emerald-500/20 active:scale-[0.99]"
               >
                 <Copy className="h-4 w-4" />
-                Αντιγραφή Προσωπικού Magic Link Συγχρονισμού
+                Αντιγραφή Προσωπικού Link Μεταφοράς
               </button>
             </div>
 
@@ -334,7 +378,7 @@ export default function InstallPwaPrompt() {
             <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-zinc-100">
-                  Τρόπος 2: Κωδικός Συγχρονισμού (Sync Code)
+                  Τρόπος 2: Με τον Προσωπικό σου Κωδικό
                 </span>
                 <button
                   type="button"
@@ -347,9 +391,8 @@ export default function InstallPwaPrompt() {
               </div>
 
               <p className="text-xs text-zinc-400">
-                Γράψε τον ίδιο κωδικό στο κινητό και στον υπολογιστή σου. Με το «Αποθήκευση στο
-                Cloud» ανεβάζεις την πρόοδό σου, και με το «Φόρτωση σε αυτή τη Συσκευή» την
-                κατεβάζεις αμέσως.
+                Γράψε τον ίδιο κωδικό στο κινητό και στον υπολογιστή σου. Πάτησε «Αποθήκευση» στη
+                μία συσκευή και «Φόρτωση» στην άλλη:
               </p>
 
               <input
@@ -357,7 +400,7 @@ export default function InstallPwaPrompt() {
                 value={inputSyncKey}
                 onChange={(e) => setInputSyncKey(e.target.value.toUpperCase())}
                 placeholder="π.χ. KIN-ABCD-123"
-                className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3.5 py-2.5 text-center font-mono text-sm font-bold tracking-wider text-emerald-300 focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3.5 py-2.5 text-center font-mono text-sm font-bold tracking-wider text-emerald-400 focus:border-emerald-500 focus:outline-none"
               />
 
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -365,10 +408,10 @@ export default function InstallPwaPrompt() {
                   type="button"
                   disabled={isSyncing}
                   onClick={handlePushCloud}
-                  className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 py-2.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 py-2.5 text-xs font-bold text-emerald-400 hover:bg-emerald-500/25"
                 >
                   <CloudUpload className="h-4 w-4" />
-                  {isSyncing ? 'Συγχρονισμός...' : '1. Αποθήκευση από εδώ'}
+                  {isSyncing ? 'Αποθήκευση...' : '1. Αποθήκευση από εδώ'}
                 </button>
 
                 <button
@@ -396,13 +439,13 @@ export default function InstallPwaPrompt() {
 
       {/* INSTALL & PRIVACY EXPLANATION MODAL */}
       {showInstallModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/90 p-4 backdrop-blur-md overflow-y-auto">
-          <div className="w-full max-w-md space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl my-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-zinc-950/90 p-4 backdrop-blur-md">
+          <div className="my-auto w-full max-w-md space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2 text-emerald-400">
                 <Smartphone className="h-5 w-5" />
                 <h3 className="text-base font-bold text-zinc-50">
-                  Προσθήκη στην Αρχική Οθόνη & Ιδιωτικότητα
+                  Εγκατάσταση στην Αρχική Οθόνη & Ιδιωτικότητα
                 </h3>
               </div>
               <button
@@ -415,36 +458,35 @@ export default function InstallPwaPrompt() {
             </div>
 
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs leading-relaxed text-zinc-200">
-              <div className="flex items-center gap-1.5 font-bold text-emerald-300">
-                <Lock className="h-4 w-4 text-emerald-400" />
-                <span>Τι γίνεται αν δώσω το βασικό link σε άλλον;</span>
+              <div className="flex items-center gap-1.5 font-bold text-emerald-400">
+                <Lock className="h-4 w-4" />
+                <span>Τι γίνεται αν δώσω το link σε άλλον;</span>
               </div>
               <p className="mt-1 text-zinc-300">
-                <strong>Κανένας άλλος δεν βλέπει τα δικά σου στατιστικά ή τα PDF σου!</strong> Το
-                βασικό link ανοίγει σε κάθε ξένη συσκευή μια εντελώς καινούργια, άδεια βάση. Μόνο
-                εσύ μπορείς να μεταφέρεις την πρόοδό σου στον υπολογιστή σου με τον προσωπικό σου
-                κωδικό <strong>{syncKey}</strong>.
+                <strong>Κανένας άλλος δεν βλέπει τα δικά σου στατιστικά ή τα PDF σου!</strong> Σε
+                κάθε άλλη συσκευή ανοίγει μια εντελώς καινούργια, άδεια βάση. Μόνο εσύ μπορείς να
+                συνδέσεις το κινητό με τον υπολογιστή σου με τον κωδικό <strong>{syncKey}</strong>.
               </p>
             </div>
 
             {isIos ? (
               <div className="space-y-2.5 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs">
                 <p className="font-bold text-zinc-100">
-                  Πώς το κατεβάζεις στην Αρχική Οθόνη σε iPhone / Safari:
+                  Πώς το βάζεις στην Αρχική Οθόνη σε iPhone / Safari:
                 </p>
                 <ol className="space-y-2 text-zinc-300">
                   <li className="flex items-start gap-2">
                     <Share className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
                     <span>
                       <strong>Βήμα 1:</strong> Πάτησε το κουμπί <strong>Κοινοποίηση (Share)</strong>{' '}
-                      στη γραμμή του Safari.
+                      κάτω στο Safari.
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <PlusSquare className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
                     <span>
                       <strong>Βήμα 2:</strong> Επίλεξε{' '}
-                      <strong>«Προσθήκη στην Οθόνη Αφετηρίας» (Add to Home Screen)</strong>.
+                      <strong>«Προσθήκη στην Οθόνη Αφετηρίας»</strong>.
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
@@ -458,16 +500,16 @@ export default function InstallPwaPrompt() {
             ) : (
               <div className="space-y-2.5 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs">
                 <p className="font-bold text-zinc-100">
-                  Πώς το κατεβάζεις στην Αρχική Οθόνη σε Android / Υπολογιστή (Chrome):
+                  Πώς το βάζεις στην Αρχική Οθόνη σε Android / Υπολογιστή (Chrome):
                 </p>
                 <ol className="space-y-2 text-zinc-300">
                   <li>
                     <strong>Βήμα 1:</strong> Πάτησε τις <strong>3 τελείες (⋮)</strong> πάνω δεξιά
-                    στον Google Chrome (ή το εικονίδιο εγκατάστασης στη γραμμή διεύθυνσης του PC).
+                    στον Google Chrome.
                   </li>
                   <li>
                     <strong>Βήμα 2:</strong> Επίλεξε{' '}
-                    <strong>«Εγκατάσταση εφαρμογής» (Install app)</strong> ή{' '}
+                    <strong>«Εγκατάσταση εφαρμογής»</strong> ή{' '}
                     <strong>«Προσθήκη στην αρχική οθόνη»</strong>.
                   </li>
                 </ol>

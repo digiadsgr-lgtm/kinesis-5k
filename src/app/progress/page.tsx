@@ -59,13 +59,14 @@ export default function ProgressAndBehaviorPage() {
 
   return (
     <div className="space-y-5">
-      <header className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+      <header className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 shadow-lg">
         <div className="flex items-center gap-2 text-emerald-400">
           <TrendingUp className="h-5 w-5" />
-          <h1 className="text-lg font-bold text-zinc-50">Διπλή Πρόοδος & Μνήμη Συμπεριφοράς</h1>
+          <h1 className="text-lg font-bold text-zinc-50">Η Πορεία σου & Τα 6 Στάδια μέχρι τα 5km</h1>
         </div>
         <p className="mt-1 text-xs text-zinc-400">
-          Διαχωρισμός της νευρολογικής συνέπειας από τη μηχανική αντοχή των τενόντων.
+          Χωρίς πιεστικό ημερολόγιο. Προχωράς στο επόμενο στάδιο μόνο όταν η συνήθεια και το σώμα
+          σου είναι έτοιμα.
         </p>
       </header>
 
@@ -73,18 +74,18 @@ export default function ProgressAndBehaviorPage() {
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
         <div className="space-y-5 lg:col-span-5">
           {/* Dual Progression Bars Card */}
-          <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5">
+          <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 shadow-lg">
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-emerald-400">
-                  1. Συνέπεια Εκκίνησης (habitConsistencyScore)
+                  1. Συνήθεια & Συνέπεια Κίνησης
                 </span>
                 <span className="text-sm font-bold text-emerald-400">
                   {progression.habitConsistencyScore}/100
                 </span>
               </div>
               <p className="mt-0.5 text-[11px] text-zinc-400">
-                Επιβραβεύει κάθε νίκη απέναντι στην αδράνεια (ακόμα και 2 λεπτά κινητικότητας).
+                Επιβραβεύει κάθε φορά που σηκώνεσαι (ακόμα και 2 λεπτά ξεπιασίματος).
               </p>
               <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-zinc-800">
                 <div
@@ -93,23 +94,23 @@ export default function ProgressAndBehaviorPage() {
                 />
               </div>
               <div className="mt-1 flex flex-wrap justify-between gap-1 text-[10px] text-zinc-500">
-                <span>Απαίτηση επόμενου σταδίου: {currentStageDef.minHabitScoreToAdvance}%</span>
-                <span>Συνολικές συνεδρίες: {progression.totalSessionsCompleted}</span>
+                <span>Στόχος επόμενου σταδίου: {currentStageDef.minHabitScoreToAdvance}%</span>
+                <span>Συνολικές κινήσεις: {progression.totalSessionsCompleted}</span>
               </div>
             </div>
 
             <div className="border-t border-zinc-800 pt-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-zinc-100">
-                  2. Δομική & Αερόβια Ετοιμότητα (runningReadiness)
+                  2. Δύναμη Ποδιών & Αντοχή για τα 5km
                 </span>
                 <span className="text-sm font-bold text-zinc-100">
                   {progression.runningReadiness}/100
                 </span>
               </div>
               <p className="mt-0.5 text-[11px] text-zinc-400">
-                Σταθμισμένο φορτίο τενόντων, οστών και καρδιοαναπνευστικού για ασφαλή μετάβαση στα
-                5km.
+                Δείχνει πόσο δυνατά είναι τα γόνατα, οι αστράγαλοι και η ανάσα σου για ασφαλές
+                τρέξιμο.
               </p>
               <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-zinc-800">
                 <div
@@ -118,7 +119,7 @@ export default function ProgressAndBehaviorPage() {
                 />
               </div>
               <div className="mt-1 flex flex-wrap justify-between gap-1 text-[10px] text-zinc-500">
-                <span>Απαίτηση επόμενου σταδίου: {currentStageDef.minReadinessToAdvance}%</span>
+                <span>Στόχος επόμενου σταδίου: {currentStageDef.minReadinessToAdvance}%</span>
                 <span>Συνολικά λεπτά κίνησης: {totalMinutesMoved}&apos;</span>
               </div>
             </div>

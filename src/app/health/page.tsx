@@ -203,14 +203,14 @@ export default function HealthBiomarkersHub() {
 
   return (
     <div className="space-y-5">
-      <header className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+      <header className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 shadow-lg">
         <div className="flex items-center gap-2 text-emerald-400">
           <HeartPulse className="h-5 w-5" />
-          <h1 className="text-lg font-bold text-zinc-50">Κέντρο Βιομετρικών & Αιματολογικών</h1>
+          <h1 className="text-lg font-bold text-zinc-50">Υγεία, Ύπνος & Εξετάσεις Αίματος (PDF)</h1>
         </div>
         <p className="mt-1 text-xs text-zinc-400">
-          Οι δείκτες αποκατάστασης και αίματος λειτουργούν ως αυτόματος «κόφτης ασφαλείας» στην
-          ένταση.
+          Ο ύπνος και οι εξετάσεις σου προστατεύουν αυτόματα το σώμα σου: αν είσαι κουρασμένος ή
+          έχεις χαμηλό σίδηρο, η εφαρμογή προτείνει πιο ήπιες κινήσεις.
         </p>
       </header>
 
@@ -416,19 +416,21 @@ export default function HealthBiomarkersHub() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Moon className="h-4 w-4 text-emerald-400" />
-                <h2 className="text-sm font-bold text-zinc-100">Ημερήσια Βιομετρικά (Smartwatch)</h2>
+                <h2 className="text-sm font-bold text-zinc-100">
+                  Σημερινή Ξεκούραση & Ύπνος (Smartwatch)
+                </h2>
               </div>
               {(rhrElevated || sleepLow) && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-amber-400">
                   <ShieldAlert className="h-3 w-3" />
-                  Zone 1 Cap Ενεργό
+                  Προστασία Σώματος • Ήπιος Ρυθμός
                 </span>
               )}
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="block text-xs text-zinc-400">Σκορ Ύπνου (0-100)</label>
+                <label className="block text-xs text-zinc-400">Ποιότητα Ύπνου (0-100)</label>
                 <input
                   type="number"
                   min={0}
@@ -439,11 +441,13 @@ export default function HealthBiomarkersHub() {
                   }
                   className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
                 />
-                <span className="mt-0.5 block text-[10px] text-zinc-500">Safety Gate αν &lt; 60</span>
+                <span className="mt-0.5 block text-[10px] text-zinc-500">
+                  Αυτόματη προστασία αν είναι κάτω από 60
+                </span>
               </div>
 
               <div>
-                <label className="block text-xs text-zinc-400">HRV (ms)</label>
+                <label className="block text-xs text-zinc-400">Ξεκούραση Καρδιάς (HRV ms)</label>
                 <input
                   type="number"
                   min={10}
@@ -452,11 +456,11 @@ export default function HealthBiomarkersHub() {
                   onChange={(e) => setBiometrics({ ...biometrics, hrv: Number(e.target.value) })}
                   className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
                 />
-                <span className="mt-0.5 block text-[10px] text-zinc-500">Μεταβλητότητα Καρδιάς</span>
+                <span className="mt-0.5 block text-[10px] text-zinc-500">Μεταβλητότητα Παλμών</span>
               </div>
 
               <div>
-                <label className="block text-xs text-zinc-400">Σημερινό RHR (bpm)</label>
+                <label className="block text-xs text-zinc-400">Παλμοί Ηρεμίας Σήμερα (bpm)</label>
                 <input
                   type="number"
                   min={35}
@@ -466,12 +470,12 @@ export default function HealthBiomarkersHub() {
                   className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
                 />
                 <span className="mt-0.5 block text-[10px] text-zinc-500">
-                  Safety Gate αν &gt; Βάση + 5
+                  Προστασία αν ανέβουν πάνω από +5 από το κανονικό
                 </span>
               </div>
 
               <div>
-                <label className="block text-xs text-zinc-400">Βάση RHR (bpm)</label>
+                <label className="block text-xs text-zinc-400">Κανονικοί Παλμοί Ηρεμίας (bpm)</label>
                 <input
                   type="number"
                   min={35}
@@ -482,7 +486,7 @@ export default function HealthBiomarkersHub() {
                   }
                   className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
                 />
-                <span className="mt-0.5 block text-[10px] text-zinc-500">Μέσος όρος 30 ημερών</span>
+                <span className="mt-0.5 block text-[10px] text-zinc-500">Ο συνηθισμένος σου μέσος όρος</span>
               </div>
 
               <div>

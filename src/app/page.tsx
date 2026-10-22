@@ -343,14 +343,17 @@ export default function TodayCommandCenter() {
               <div>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-emerald-400">
                   <Zap className="h-3 w-3" />
-                  {currentStageDef.code} • {currentStageDef.titleGreek}
+                  {currentStageDef.code.replace('STAGE', 'ΣΤΑΔΙΟ')} • {currentStageDef.titleGreek}
                 </span>
                 <h1 className="mt-1.5 text-xl font-bold tracking-tight text-zinc-50 sm:text-2xl">
                   Το Επόμενο Βήμα Σου
                 </h1>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  Μία μόνο ξεκάθαρη κίνηση, κομμένη και ραμμένη στο πώς νιώθεις τώρα.
+                </p>
               </div>
               <div className="shrink-0 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-right">
-                <span className="block text-[10px] font-medium text-zinc-400">Ετοιμότητα</span>
+                <span className="block text-[10px] font-medium text-zinc-400">Όρεξη & Ενέργεια</span>
                 <span
                   className={`text-sm font-bold ${
                     recommendation.mosScore < 40 ? 'text-amber-400' : 'text-emerald-400'
@@ -365,7 +368,7 @@ export default function TodayCommandCenter() {
             <div className="mt-3.5 grid grid-cols-1 gap-3 border-t border-zinc-800/80 pt-3 sm:grid-cols-2">
               <div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-zinc-300">Συνήθεια & Συνέπεια</span>
+                  <span className="font-medium text-zinc-300">Συνήθεια Κίνησης</span>
                   <span className="font-bold text-emerald-400">
                     {progression.habitConsistencyScore}%
                   </span>
@@ -380,7 +383,7 @@ export default function TodayCommandCenter() {
 
               <div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-zinc-300">Αντοχή Ποδιών (5K)</span>
+                  <span className="font-medium text-zinc-300">Αντοχή για τα 5km</span>
                   <span className="font-bold text-zinc-100">{progression.runningReadiness}%</span>
                 </div>
                 <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-zinc-800">
@@ -391,19 +394,42 @@ export default function TodayCommandCenter() {
                 </div>
               </div>
             </div>
+
+            {/* Mobile Effortless Quick-Jump Bar */}
+            <div className="mt-3.5 grid grid-cols-3 gap-1.5 border-t border-zinc-800/80 pt-3 lg:hidden">
+              <a
+                href="#checkin-section"
+                className="flex items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 px-2 py-2 text-center text-[11px] font-bold text-zinc-200 active:scale-95"
+              >
+                1. Χρόνος & Χώρος
+              </a>
+              <a
+                href="#proposal-section"
+                className="flex items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/40 px-2 py-2 text-center text-[11px] font-bold text-emerald-400 active:scale-95"
+              >
+                2. Η Άσκησή σου ↓
+              </a>
+              <a
+                href="#library-section"
+                className="flex items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 px-2 py-2 text-center text-[11px] font-bold text-zinc-200 active:scale-95"
+              >
+                3. 16 Προγράμματα
+              </a>
+            </div>
           </header>
 
           {/* QUICK CHECK-IN CONTROLS (100% Responsive & Mobile Thumb Friendly) */}
           <section
+            id="checkin-section"
             aria-label="Γρήγορη Ρύθμιση Σημερινής Κατάστασης"
-            className="space-y-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/90 p-4"
+            className="scroll-mt-20 space-y-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/95 p-4 shadow-lg"
           >
             {/* 1. Time Window Selector */}
             <div>
               <div className="flex flex-wrap items-center justify-between gap-1">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-zinc-100">
                   <Clock className="h-4 w-4 text-emerald-400" />
-                  1. Πόσα λεπτά έχεις διαθέσιμα τώρα;
+                  1. Πόσα λεπτά έχεις ελεύθερα τώρα;
                 </span>
                 <span className="rounded-lg bg-emerald-500/15 px-2.5 py-0.5 text-xs font-bold text-emerald-400">
                   {checkIn.timeWindowMins} λεπτά
@@ -431,7 +457,7 @@ export default function TodayCommandCenter() {
             <div>
               <span className="flex items-center gap-1.5 text-xs font-bold text-zinc-100">
                 <Shirt className="h-4 w-4 text-emerald-400" />
-                <span>2. Πού βρίσκεσαι τώρα;</span>
+                <span>2. Πού βρίσκεσαι αυτή τη στιγμή;</span>
               </span>
               <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1">
                 {(
@@ -448,7 +474,7 @@ export default function TodayCommandCenter() {
                     onClick={() => updateCheckInField('environment', env)}
                     className={`flex min-h-[46px] w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-xs font-semibold transition active:scale-[0.99] ${
                       checkIn.environment === env
-                        ? 'border border-emerald-500/60 bg-emerald-500/15 text-emerald-200'
+                        ? 'border border-emerald-500/60 bg-emerald-500/15 text-emerald-300 font-bold'
                         : 'border border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700'
                     }`}
                   >
@@ -529,7 +555,7 @@ export default function TodayCommandCenter() {
                       checkIn.painLevel >= 4 ? 'text-amber-400' : 'text-zinc-400'
                     }`}
                   />
-                  Έχεις κάποιον πόνο σήμερα; (0 = Κανένας)
+                  Νιώθεις κάποιο πιάσιμο ή πόνο; (0 = Κανένας)
                 </span>
                 <span
                   className={`rounded-lg px-2.5 py-0.5 font-bold ${
@@ -554,7 +580,7 @@ export default function TodayCommandCenter() {
                   type="text"
                   value={checkIn.painLocation}
                   onChange={(e) => updateCheckInField('painLocation', e.target.value)}
-                  placeholder="Πού νιώθεις ενόχληση; (π.χ. γόνατο, μέση, αστράγαλος)"
+                  placeholder="Πού νιώθεις ενόχληση; (π.χ. γόνατο, μέση, αυχένας)"
                   className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-amber-500 focus:outline-none"
                 />
               )}
@@ -566,8 +592,9 @@ export default function TodayCommandCenter() {
         <div className="space-y-5 lg:col-span-7">
           {/* PROMINENT PRIMARY RECOMMENDATION CARD ("Το Επόμενο Βήμα") */}
           <section
+            id="proposal-section"
             aria-label="Το Επόμενο Βήμα"
-            className="relative overflow-hidden rounded-2xl border-2 border-emerald-500/45 bg-zinc-900 p-4 sm:p-6 shadow-2xl"
+            className="scroll-mt-20 relative overflow-hidden rounded-2xl border-2 border-emerald-500/45 bg-zinc-900 p-4 sm:p-6 shadow-2xl"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-400">
@@ -588,14 +615,14 @@ export default function TodayCommandCenter() {
             </h2>
 
             <p className="mt-1 text-xs font-semibold text-emerald-400">
-              {displayedPrescription.intensityLabel} • Κανένας Εξοπλισμός
+              {displayedPrescription.intensityLabel} • 100% Χωρίς Εξοπλισμό
             </p>
 
             {/* 1. WHAT WE ACHIEVE IN THE BODY (Τι πετυχαίνουμε) */}
             <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
-                <Target className="h-4 w-4 shrink-0 text-emerald-400" />
-                <span>Τι πετυχαίνουμε στο σώμα:</span>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                <Target className="h-4 w-4 shrink-0" />
+                <span>Τι κερδίζει το σώμα σου:</span>
               </div>
               <p className="mt-1 text-sm leading-relaxed text-zinc-100">
                 {displayedPrescription.whatWeAchieveGreek}
@@ -606,7 +633,7 @@ export default function TodayCommandCenter() {
             <div className="mt-3.5 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
               <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
                 <ListChecks className="h-4 w-4 shrink-0" />
-                <span>Τι κάνω ακριβώς (Βήμα-Βήμα):</span>
+                <span>Τι κάνουμε ακριβώς (Βήμα-Βήμα):</span>
               </div>
               <ol className="mt-2.5 space-y-2.5 text-sm leading-relaxed text-zinc-100">
                 {displayedPrescription.stepByStepGreek.map((step, idx) => (
@@ -636,7 +663,7 @@ export default function TodayCommandCenter() {
               <button
                 type="button"
                 onClick={handleStartPrimary}
-                className="flex min-h-[54px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3.5 text-base font-bold text-zinc-950 shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-400 active:scale-[0.99]"
+                className="flex min-h-[54px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3.5 text-base font-bold text-zinc-950 shadow-lg shadow-emerald-500/25 transition hover:opacity-95 active:scale-[0.99]"
               >
                 <Play className="h-5 w-5 fill-current" />
                 Πολύ εύκολη, ξεκινάω ({displayedPrescription.durationMins}&apos;)
@@ -666,8 +693,9 @@ export default function TodayCommandCenter() {
 
           {/* RICH EQUIPMENT-FREE WORKOUT LIBRARY (16 Programs for Ages 5-105) */}
           <section
+            id="library-section"
             aria-label="Βιβλιοθήκη Ασκήσεων Χωρίς Εξοπλισμό"
-            className="space-y-3.5 rounded-2xl border border-zinc-800/90 bg-zinc-900/90 p-4 sm:p-5"
+            className="scroll-mt-20 space-y-3.5 rounded-2xl border border-zinc-800/90 bg-zinc-900/95 p-4 sm:p-5 shadow-lg"
           >
             <div className="flex items-start justify-between gap-2">
               <div>
