@@ -12,6 +12,12 @@ import {
 } from '@/types/kinesis';
 import { applyMovementToProgression } from '@/lib/engine/recommender';
 import { PdfExtractionResult } from '@/lib/parser/pdfBiomarkerExtractor';
+import {
+  DEFAULT_TRANSFORMATION_GOAL,
+  PersonalTransformationGoal,
+  UploadedDietPlan,
+} from '@/lib/engine/nutritionAndMotivation';
+import { SmartwatchSyncResult } from '@/lib/parser/smartwatchParser';
 
 const BASE_DB_NAME = 'kinesis_sit_to_5k_db';
 const DB_VERSION = 1;
@@ -240,6 +246,46 @@ export async function getUploadedPdfHistory(): Promise<PdfExtractionResult[]> {
 
 export async function saveUploadedPdfHistory(history: PdfExtractionResult[]): Promise<void> {
   await setKv('pdf_history', history);
+  triggerBackgroundCloudSync();
+}
+
+export async function getTransformationGoal(): Promise<PersonalTransformationGoal> {
+  return getKv<PersonalTransformationGoal>('transformation_goal', DEFAULT_TRANSFORMATION_GOAL);
+}
+
+export async function saveTransformationGoal(
+  goal: PersonalTransformationGoal
+): Promise<PersonalTransformationGoal> {
+  const updated: PersonalTransformationGoal = {
+    ...goal,
+    updatedAt: new Date().toISOString().slice(0, 10),
+  };
+  await setKv('transformation_goal', updated);
+  triggerBackgroundCloudSync();
+  return updated;
+}
+
+export async function getUploadedDietPlan(): Promise<UploadedDietPlan | null> {
+  return getKv<UploadedDietPlan | null>('uploaded_diet_plan', null);
+}
+
+export async function saveUploadedDietPlan(
+  plan: UploadedDietPlan | null
+): Promise<UploadedDietPlan | null> {
+  await setKv('uploaded_diet_plan', plan);
+  triggerBackgroundCloudSync();
+  return plan;
+}
+
+export async function getSmartwatchSyncHistory(): Promise<SmartwatchSyncResult[]> {
+  return getKv<SmartwatchSyncResult[]>('smartwatch_sync_history', []);
+}
+
+export async function saveSmartwatchSyncHistory(
+  history: SmartwatchSyncResult[]
+): Promise<void> {
+  await setKv('smartwatch_sync_history', history.slice(0, 15));
+  triggerBackgroundCloudSync();
 }
 
 export async function getKinesisSnapshot(): Promise<KinesisDatabaseDump> {

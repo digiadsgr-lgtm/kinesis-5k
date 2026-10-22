@@ -628,6 +628,29 @@ export function calculateRecommendation(
     );
   }
 
+  // Actively exploit Smartwatch Steps & HRV recovery in reasoning and point awards
+  let smartwatchHabitBonus = 0;
+  let smartwatchStructuralBonus = 0;
+
+  if (biometrics.stepsSoFar < 1500) {
+    reasonParts.push(
+      `Το Smartwatch δείχνει παρατεταμένη ακινησία σήμερα (${biometrics.stepsSoFar} βήματα), γι' αυτό ξεκινάμε με ενεργοποίηση της κυκλοφορίας.`
+    );
+    smartwatchHabitBonus = 1;
+  } else if (biometrics.stepsSoFar >= 7500) {
+    reasonParts.push(
+      `Το Smartwatch κατέγραψε ήδη ${biometrics.stepsSoFar} βήματα σήμερα! Κερδίζεις μπόνους συνέπειας προστατεύοντας τις αρθρώσεις από υπερφόρτωση.`
+    );
+    smartwatchHabitBonus = 2;
+  }
+
+  if (!zone1Cap && biometrics.hrv >= 55 && biometrics.sleepScore >= 75) {
+    reasonParts.push(
+      `Υψηλή αποκατάσταση Smartwatch (HRV ${biometrics.hrv} ms • Ύπνος ${biometrics.sleepScore}/100): Ιδανική μέρα για μεταβολική και μυϊκή πρόοδο!`
+    );
+    smartwatchStructuralBonus = 2;
+  }
+
   const rejectedModalities = new Set(recentRejections.map((r) => r.modality));
   if (rejectedModalities.size > 0 && !rejectedModalities.has(primaryModality)) {
     const avoidedNames = Array.from(rejectedModalities)
@@ -699,8 +722,8 @@ export function calculateRecommendation(
     stepByStepGreek: primaryDetails.stepByStepGreek,
     safetyAlertsGreek,
     mosScore,
-    habitPointsAward: primaryDetails.habitPointsAward,
-    structuralPointsAward: primaryDetails.structuralPointsAward,
+    habitPointsAward: Math.min(20, primaryDetails.habitPointsAward + smartwatchHabitBonus),
+    structuralPointsAward: primaryDetails.structuralPointsAward + smartwatchStructuralBonus,
     boredAlternative,
     hardDowngrade,
     safetyGateTriggered: zone1Cap,

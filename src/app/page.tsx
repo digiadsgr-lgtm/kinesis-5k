@@ -32,6 +32,7 @@ import {
   ENVIRONMENT_LABELS_GREEK,
   MODALITY_LABELS_GREEK,
   MoodScore,
+  MovementLog,
   RejectionEvent,
   STAGES,
   UserProgressionState,
@@ -44,16 +45,26 @@ import {
   HomeWorkoutProtocol,
 } from '@/lib/engine/homeWorkouts';
 import {
+  DEFAULT_TRANSFORMATION_GOAL,
+  PersonalTransformationGoal,
+  UploadedDietPlan,
+} from '@/lib/engine/nutritionAndMotivation';
+import {
   DEFAULT_BIOMARKERS,
   DEFAULT_BIOMETRICS,
   DEFAULT_CHECK_IN,
   DEFAULT_PROGRESSION,
   getKinesisSnapshot,
+  getTransformationGoal,
+  getUploadedDietPlan,
   recordMovementLog,
   recordRejection,
   saveCheckIn,
+  saveTransformationGoal,
+  saveUploadedDietPlan,
 } from '@/lib/storage/db';
 import SessionTimer, { ActiveTimerSession } from '@/components/SessionTimer';
+import GoalAndNutritionHub from '@/components/GoalAndNutritionHub';
 
 const TIME_WINDOWS = [2, 5, 10, 15, 20, 30, 45];
 
@@ -77,8 +88,11 @@ export default function TodayCommandCenter() {
   const [progression, setProgression] = useState<UserProgressionState>(DEFAULT_PROGRESSION);
   const [biometrics, setBiometrics] = useState<DailyBiometrics>(DEFAULT_BIOMETRICS);
   const [biomarkers, setBiomarkers] = useState<BiomarkerProfile>(DEFAULT_BIOMARKERS);
+  const [logs, setLogs] = useState<MovementLog[]>([]);
   const [rejections, setRejections] = useState<RejectionEvent[]>([]);
   const [checkIn, setCheckIn] = useState<CheckInInput>(DEFAULT_CHECK_IN);
+  const [goal, setGoal] = useState<PersonalTransformationGoal>(DEFAULT_TRANSFORMATION_GOAL);
+  const [dietPlan, setDietPlan] = useState<UploadedDietPlan | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   const [overridePrescription, setOverridePrescription] = useState<{
@@ -98,11 +112,18 @@ export default function TodayCommandCenter() {
   const [completionBanner, setCompletionBanner] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    const snap = await getKinesisSnapshot();
+    const [snap, loadedGoal, loadedDiet] = await Promise.all([
+      getKinesisSnapshot(),
+      getTransformationGoal(),
+      getUploadedDietPlan(),
+    ]);
     setProgression(snap.progression);
     setBiometrics(snap.biometrics);
     setBiomarkers(snap.biomarkers);
+    setLogs(snap.logs);
     setRejections(snap.rejections);
+    setGoal(loadedGoal);
+    setDietPlan(loadedDiet);
     if (snap.progression.lastCheckIn) {
       setCheckIn(snap.progression.lastCheckIn);
     }
@@ -274,6 +295,7 @@ export default function TodayCommandCenter() {
     });
 
     setProgression(result.progression);
+    setLogs((prev) => [result.log, ...prev]);
     setActiveTimer(null);
     setOverridePrescription(null);
 
@@ -396,7 +418,7 @@ export default function TodayCommandCenter() {
             </div>
 
             {/* Mobile Effortless Quick-Jump Bar */}
-            <div className="mt-3.5 grid grid-cols-3 gap-1.5 border-t border-zinc-800/80 pt-3 lg:hidden">
+            <div className="mt-3.5 grid grid-cols-2 gap-1.5 border-t border-zinc-800/80 pt-3 sm:grid-cols-4 lg:hidden">
               <a
                 href="#checkin-section"
                 className="flex items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 px-2 py-2 text-center text-[11px] font-bold text-zinc-200 active:scale-95"
@@ -405,15 +427,21 @@ export default function TodayCommandCenter() {
               </a>
               <a
                 href="#proposal-section"
-                className="flex items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/40 px-2 py-2 text-center text-[11px] font-bold text-emerald-400 active:scale-95"
+                className="flex items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-2 py-2 text-center text-[11px] font-bold text-emerald-400 active:scale-95"
               >
                 2. Η Άσκησή σου ↓
+              </a>
+              <a
+                href="#goal-nutrition-section"
+                className="flex items-center justify-center rounded-xl border border-emerald-500/30 bg-zinc-950 px-2 py-2 text-center text-[11px] font-bold text-emerald-400 active:scale-95"
+              >
+                3. Στόχος & Διατροφή
               </a>
               <a
                 href="#library-section"
                 className="flex items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 px-2 py-2 text-center text-[11px] font-bold text-zinc-200 active:scale-95"
               >
-                3. 16 Προγράμματα
+                4. 16 Προγράμματα
               </a>
             </div>
           </header>
@@ -841,6 +869,29 @@ export default function TodayCommandCenter() {
           </section>
         </div>
       </div>
+
+      {/* DAILY NUTRITION TIP, PERSONAL GOAL & DIET PLAN HUB (Couch -> Athletic Machine) */}
+      <GoalAndNutritionHub
+        progression={progression}
+        checkIn={checkIn}
+        biometrics={biometrics}
+        biomarkers={biomarkers}
+        logs={logs}
+        goal={goal}
+        dietPlan={dietPlan}
+        onSaveGoal={async (updatedGoal) => {
+          const saved = await saveTransformationGoal(updatedGoal);
+          setGoal(saved);
+        }}
+        onSaveDietPlan={async (newPlan) => {
+          const saved = await saveUploadedDietPlan(newPlan);
+          setDietPlan(saved);
+        }}
+        onTriggerCravingResetWorkout={(session) => {
+          setCompletionBanner(null);
+          setActiveTimer(session);
+        }}
+      />
 
       {/* Active Session Timer Modal */}
       {activeTimer && (

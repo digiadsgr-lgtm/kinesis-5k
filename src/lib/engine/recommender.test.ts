@@ -12,6 +12,16 @@ import {
 } from '@/lib/parser/pdfBiomarkerExtractor';
 import { HOME_WORKOUT_PROTOCOLS } from './homeWorkouts';
 import {
+  createSampleSmartwatchTcx,
+  parseSmartwatchRawContent,
+} from '@/lib/parser/smartwatchParser';
+import {
+  calculateAthleticMachineProgress,
+  createSampleBalancedDietPlan,
+  DEFAULT_TRANSFORMATION_GOAL,
+  getDailyNutritionAndMotivation,
+} from './nutritionAndMotivation';
+import {
   BiomarkerProfile,
   CheckInInput,
   DailyBiometrics,
@@ -326,6 +336,66 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
         expect(proto.whatWeAchieveGreek.length).toBeGreaterThan(10);
         expect(proto.habitPointsAward).toBeGreaterThanOrEqual(14);
       }
+    });
+
+    it('parses Smartwatch .TCX XML workouts & morning recovery metrics and exploits them in recommendations', () => {
+      const tcxXml = createSampleSmartwatchTcx('walk_run_workout');
+      const parsedTcx = parseSmartwatchRawContent(tcxXml, 'Garmin_Workout.tcx');
+
+      expect(parsedTcx.detectedWorkout).toBeDefined();
+      expect(parsedTcx.detectedWorkout?.durationMins).toBe(20);
+      expect(parsedTcx.detectedWorkout?.distanceMeters).toBe(2450);
+      expect(parsedTcx.biometricsUpdate.rhr).toBe(58);
+      expect(parsedTcx.biometricsUpdate.stepsSoFar).toBeGreaterThan(3000);
+
+      const highStepBiometrics: DailyBiometrics = {
+        ...healthyBiometrics,
+        stepsSoFar: 8200,
+        hrv: 64,
+        sleepScore: 85,
+      };
+      const rec = calculateRecommendation(
+        highReadinessCheckIn,
+        2,
+        highStepBiometrics,
+        normalBiomarkers,
+        []
+      );
+      expect(rec.reasoningGreek).toContain('Smartwatch');
+      expect(rec.habitPointsAward).toBeGreaterThanOrEqual(16);
+    });
+
+    it('generates adaptive daily nutrition tips, parses personal diet plans, and computes Athletic Machine progress', () => {
+      const poorSleepTip = getDailyNutritionAndMotivation(
+        0,
+        highReadinessCheckIn,
+        { ...healthyBiometrics, sleepScore: 50 },
+        normalBiomarkers,
+        0
+      );
+      expect(poorSleepTip.id).toBe('tip-sleep-ghrelin');
+      expect(poorSleepTip.nutritionTipGreek).toContain('50/100');
+
+      const diet = createSampleBalancedDietPlan();
+      expect(diet.meals.length).toBe(5);
+      expect(diet.meals[0].slotLabelGreek).toContain('Πρωινό');
+
+      const machine = calculateAthleticMachineProgress(
+        {
+          id: 'singleton',
+          currentStage: 2,
+          habitConsistencyScore: 70,
+          runningReadiness: 55,
+          totalSessionsCompleted: 8,
+          lastActiveDate: new Date().toISOString(),
+          lastCheckIn: highReadinessCheckIn,
+        },
+        healthyBiometrics,
+        [],
+        DEFAULT_TRANSFORMATION_GOAL
+      );
+      expect(machine.machineScore).toBeGreaterThan(40);
+      expect(machine.phaseTitleGreek).toContain('Φάση');
     });
   });
 });

@@ -17,14 +17,18 @@ import {
   Stethoscope,
   Trash2,
 } from 'lucide-react';
-import { BiomarkerProfile, DailyBiometrics } from '@/types/kinesis';
+import { BiomarkerProfile, CheckInInput, DailyBiometrics, StageId } from '@/types/kinesis';
 import {
   DEFAULT_BIOMARKERS,
   DEFAULT_BIOMETRICS,
+  DEFAULT_CHECK_IN,
   getKinesisSnapshot,
+  getSmartwatchSyncHistory,
   getUploadedPdfHistory,
+  recordMovementLog,
   saveBiomarkers,
   saveBiometrics,
+  saveSmartwatchSyncHistory,
   saveUploadedPdfHistory,
 } from '@/lib/storage/db';
 import {
@@ -33,10 +37,15 @@ import {
   parseBiomarkersFromText,
   PdfExtractionResult,
 } from '@/lib/parser/pdfBiomarkerExtractor';
+import { SmartwatchSyncResult } from '@/lib/parser/smartwatchParser';
+import SmartwatchSyncHub from '@/components/SmartwatchSyncHub';
 
 export default function HealthBiomarkersHub() {
   const [biometrics, setBiometrics] = useState<DailyBiometrics>(DEFAULT_BIOMETRICS);
   const [biomarkers, setBiomarkers] = useState<BiomarkerProfile>(DEFAULT_BIOMARKERS);
+  const [currentStage, setCurrentStage] = useState<StageId>(0);
+  const [lastCheckIn, setLastCheckIn] = useState<CheckInInput>(DEFAULT_CHECK_IN);
+  const [watchSyncHistory, setWatchSyncHistory] = useState<SmartwatchSyncResult[]>([]);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [pdfHistory, setPdfHistory] = useState<PdfExtractionResult[]>([]);
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -47,16 +56,52 @@ export default function HealthBiomarkersHub() {
 
   useEffect(() => {
     const load = () => {
-      Promise.all([getKinesisSnapshot(), getUploadedPdfHistory()]).then(([snap, history]) => {
+      Promise.all([
+        getKinesisSnapshot(),
+        getUploadedPdfHistory(),
+        getSmartwatchSyncHistory(),
+      ]).then(([snap, history, watchHist]) => {
         setBiometrics(snap.biometrics);
         setBiomarkers(snap.biomarkers);
+        setCurrentStage(snap.progression.currentStage);
+        if (snap.progression.lastCheckIn) {
+          setLastCheckIn(snap.progression.lastCheckIn);
+        }
         setPdfHistory(history);
+        setWatchSyncHistory(watchHist);
       });
     };
     load();
     window.addEventListener('kinesis-sync-restored', load);
     return () => window.removeEventListener('kinesis-sync-restored', load);
   }, []);
+
+  const handleApplySmartwatchSync = async (
+    result: SmartwatchSyncResult,
+    updatedBiometrics: DailyBiometrics
+  ) => {
+    setBiometrics(updatedBiometrics);
+    await saveBiometrics(updatedBiometrics);
+
+    const nextWatchHistory = [result, ...watchSyncHistory].slice(0, 15);
+    setWatchSyncHistory(nextWatchHistory);
+    await saveSmartwatchSyncHistory(nextWatchHistory);
+
+    if (result.detectedWorkout) {
+      const w = result.detectedWorkout;
+      await recordMovementLog({
+        title: w.title,
+        modality: w.modality,
+        durationMins: w.durationMins,
+        intensityLabel: `Smartwatch Sync${w.avgHeartRate ? ` • ${w.avgHeartRate} bpm` : ''}`,
+        habitPointsEarned: 15,
+        structuralPointsEarned: Math.max(4, Math.round(w.durationMins * 0.75)),
+        rpe: 5,
+        notes: `Αυτόματη εισαγωγή από ${result.sourceName}`,
+        wasNegotiated: 'primary',
+      });
+    }
+  };
 
   const mergeAndSavePdfResults = async (newResults: PdfExtractionResult[]) => {
     const validResults = newResults.filter(
@@ -406,8 +451,18 @@ export default function HealthBiomarkersHub() {
           </section>
         </div>
 
-        {/* RIGHT COLUMN: Smartwatch Biometrics & Blood Biomarkers Forms */}
+        {/* RIGHT COLUMN: Smartwatch Live Sync, Biometrics & Blood Biomarkers Forms */}
         <div className="space-y-5 lg:col-span-6">
+          {/* LIVE SMARTWATCH CONNECTION & DIAGNOSTICS HUB */}
+          <SmartwatchSyncHub
+            biometrics={biometrics}
+            biomarkers={biomarkers}
+            currentStage={currentStage}
+            lastCheckIn={lastCheckIn}
+            syncHistory={watchSyncHistory}
+            onApplySmartwatchSync={handleApplySmartwatchSync}
+          />
+
           {/* Daily Smartwatch Biometrics */}
           <form
             onSubmit={handleSaveBiometrics}
