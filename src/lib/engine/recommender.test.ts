@@ -6,6 +6,7 @@ import {
 } from './recommender';
 import {
   createSampleGreekLabPdfBlob,
+  extractBiomarkersFromMultipleFiles,
   extractTextFromPdfBuffer,
   parseBiomarkersFromText,
 } from '@/lib/parser/pdfBiomarkerExtractor';
@@ -298,6 +299,23 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       expect(parsed.updatedProfile.crp).toBe(1.4);
       expect(parsed.updatedProfile.fastingGlucose).toBe(94);
       expect(parsed.extraFindingsGreek.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('merges biomarkers across multiple uploaded PDFs (e.g. separate hematology & biochemistry PDFs)', async () => {
+      const hemaBlob = createSampleGreekLabPdfBlob('hematology');
+      const bioBlob = createSampleGreekLabPdfBlob('biochemistry');
+
+      const file1 = new File([hemaBlob], '1_Hematology.pdf', { type: 'application/pdf' });
+      const file2 = new File([bioBlob], '2_Biochemistry.pdf', { type: 'application/pdf' });
+
+      const batch = await extractBiomarkersFromMultipleFiles([file1, file2]);
+      expect(batch.resultsPerFile.length).toBe(2);
+      expect(batch.mergedProfile.hemoglobin).toBe(13.4);
+      expect(batch.mergedProfile.ferritin).toBe(21.5);
+      expect(batch.mergedProfile.vitaminD).toBe(22.8);
+      expect(batch.mergedProfile.vitaminB12).toBe(340);
+      expect(batch.mergedProfile.crp).toBe(1.4);
+      expect(batch.mergedProfile.fastingGlucose).toBe(94);
     });
 
     it('provides 10 structured home conditioning protocols with step-by-step Greek exercises', () => {

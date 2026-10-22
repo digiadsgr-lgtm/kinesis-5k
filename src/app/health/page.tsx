@@ -7,7 +7,7 @@ import {
   CheckCircle2,
   Download,
   Droplets,
-  FileText,
+  Files,
   FileUp,
   HeartPulse,
   Moon,
@@ -15,18 +15,21 @@ import {
   ShieldAlert,
   Sparkles,
   Stethoscope,
+  Trash2,
 } from 'lucide-react';
 import { BiomarkerProfile, DailyBiometrics } from '@/types/kinesis';
 import {
   DEFAULT_BIOMARKERS,
   DEFAULT_BIOMETRICS,
   getKinesisSnapshot,
+  getUploadedPdfHistory,
   saveBiomarkers,
   saveBiometrics,
+  saveUploadedPdfHistory,
 } from '@/lib/storage/db';
 import {
   createSampleGreekLabPdfBlob,
-  extractBiomarkersFromFile,
+  extractBiomarkersFromMultipleFiles,
   parseBiomarkersFromText,
   PdfExtractionResult,
 } from '@/lib/parser/pdfBiomarkerExtractor';
@@ -35,7 +38,7 @@ export default function HealthBiomarkersHub() {
   const [biometrics, setBiometrics] = useState<DailyBiometrics>(DEFAULT_BIOMETRICS);
   const [biomarkers, setBiomarkers] = useState<BiomarkerProfile>(DEFAULT_BIOMARKERS);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
-  const [pdfResult, setPdfResult] = useState<PdfExtractionResult | null>(null);
+  const [pdfHistory, setPdfHistory] = useState<PdfExtractionResult[]>([]);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [isParsingPdf, setIsParsingPdf] = useState<boolean>(false);
   const [pastedLabText, setPastedLabText] = useState<string>('');
@@ -43,54 +46,74 @@ export default function HealthBiomarkersHub() {
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    getKinesisSnapshot().then((snap) => {
+    Promise.all([getKinesisSnapshot(), getUploadedPdfHistory()]).then(([snap, history]) => {
       setBiometrics(snap.biometrics);
       setBiomarkers(snap.biomarkers);
+      setPdfHistory(history);
     });
   }, []);
 
-  const applyExtractionToProfile = async (result: PdfExtractionResult) => {
-    setPdfResult(result);
-    if (result.detectedItems.length === 0 && result.extraFindingsGreek.length === 0) {
+  const mergeAndSavePdfResults = async (newResults: PdfExtractionResult[]) => {
+    const validResults = newResults.filter(
+      (r) => r.detectedItems.length > 0 || r.extraFindingsGreek.length > 0
+    );
+
+    if (validResults.length === 0) {
       setPdfError(
-        'Δεν εντοπίστηκαν αναγνωρίσιμες τιμές αιματολογικών στο αρχείο. Αν το PDF είναι σκαναρισμένη εικόνα (χωρίς επιλέξιμο κείμενο), δοκίμασε την επικόλληση κειμένου ή συμπλήρωσε τα πεδία.'
+        'Δεν εντοπίστηκαν αναγνωρίσιμες τιμές αιματολογικών στα επιλεγμένα αρχεία. Αν κάποιο PDF είναι σκαναρισμένη εικόνα, δοκίμασε την επικόλληση κειμένου.'
       );
       return;
     }
 
     setPdfError(null);
-    const mergedRestrictions =
-      result.extraFindingsGreek.length > 0
-        ? [biomarkers.medicalRestrictions, ...result.extraFindingsGreek]
-            .filter(Boolean)
-            .join(' • ')
-        : biomarkers.medicalRestrictions;
+    const updatedHistory = [...validResults, ...pdfHistory].slice(0, 15);
+    setPdfHistory(updatedHistory);
+    await saveUploadedPdfHistory(updatedHistory);
 
+    // Merge all detected biomarkers from oldest to newest so the latest upload wins per marker
+    const mergedProfile: Partial<BiomarkerProfile> = {};
+    const extraFindingsSet = new Set<string>();
+
+    for (const item of [...updatedHistory].reverse()) {
+      Object.assign(mergedProfile, item.updatedProfile);
+      for (const extra of item.extraFindingsGreek) {
+        extraFindingsSet.add(extra);
+      }
+    }
+
+    const extraNotesText = Array.from(extraFindingsSet).join(' • ');
     const nextBiomarkers: BiomarkerProfile = {
       ...biomarkers,
-      ...result.updatedProfile,
-      medicalRestrictions: mergedRestrictions,
+      ...mergedProfile,
+      medicalRestrictions: extraNotesText || biomarkers.medicalRestrictions,
     };
 
     setBiomarkers(nextBiomarkers);
     await saveBiomarkers(nextBiomarkers);
+
+    const totalDetectedCount = validResults.reduce(
+      (acc, r) => acc + r.detectedItems.length,
+      0
+    );
     setSavedNotice(
-      `Αναγνώστηκαν αυτόματα ${result.detectedItems.length} βασικοί δείκτες από το «${result.fileName}» και αποθηκεύτηκαν στη συσκευή σου!`
+      `Αναλύθηκαν ${validResults.length} αρχεία PDF (${totalDetectedCount} δείκτες) και συγχωνεύτηκαν αυτόματα στο προφίλ σου!`
     );
   };
 
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleMultiPdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
 
+    const filesArray = Array.from(fileList);
     setIsParsingPdf(true);
     setPdfError(null);
+
     try {
-      const result = await extractBiomarkersFromFile(file);
-      await applyExtractionToProfile(result);
+      const batchSummary = await extractBiomarkersFromMultipleFiles(filesArray);
+      await mergeAndSavePdfResults(batchSummary.resultsPerFile);
     } catch (err) {
       setPdfError(
-        err instanceof Error ? err.message : 'Σφάλμα κατά την ανάγνωση του αρχείου PDF.'
+        err instanceof Error ? err.message : 'Σφάλμα κατά την ανάγνωση των αρχείων PDF.'
       );
     } finally {
       setIsParsingPdf(false);
@@ -98,25 +121,42 @@ export default function HealthBiomarkersHub() {
     }
   };
 
-  const handleTestSamplePdf = async () => {
+  const handleTestMultipleSamplePdfs = async () => {
     setIsParsingPdf(true);
     setPdfError(null);
     try {
-      const blob = createSampleGreekLabPdfBlob();
-      const sampleFile = new File([blob], 'Μικροβιολογικό_Εργαστήριο_Δείγμα.pdf', {
+      const hemaBlob = createSampleGreekLabPdfBlob('hematology');
+      const bioBlob = createSampleGreekLabPdfBlob('biochemistry');
+
+      const file1 = new File([hemaBlob], '1_Γενική_Αίματος_&_Σίδηρος.pdf', {
         type: 'application/pdf',
       });
-      const result = await extractBiomarkersFromFile(sampleFile);
-      await applyExtractionToProfile(result);
+      const file2 = new File([bioBlob], '2_Βιοχημικές_&_Βιταμίνες_D_B12.pdf', {
+        type: 'application/pdf',
+      });
+
+      const batchSummary = await extractBiomarkersFromMultipleFiles([file1, file2]);
+      await mergeAndSavePdfResults(batchSummary.resultsPerFile);
     } catch (err) {
-      setPdfError(err instanceof Error ? err.message : 'Σφάλμα δοκιμής PDF.');
+      setPdfError(err instanceof Error ? err.message : 'Σφάλμα δοκιμής πολλαπλών PDF.');
     } finally {
       setIsParsingPdf(false);
     }
   };
 
+  const handleRemovePdfFromHistory = async (id: string) => {
+    const nextHistory = pdfHistory.filter((item) => item.id !== id);
+    setPdfHistory(nextHistory);
+    await saveUploadedPdfHistory(nextHistory);
+  };
+
+  const handleClearAllPdfHistory = async () => {
+    setPdfHistory([]);
+    await saveUploadedPdfHistory([]);
+  };
+
   const handleDownloadSamplePdf = () => {
-    const blob = createSampleGreekLabPdfBlob();
+    const blob = createSampleGreekLabPdfBlob('full');
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -130,7 +170,7 @@ export default function HealthBiomarkersHub() {
   const handleParsePastedText = async () => {
     if (!pastedLabText.trim()) return;
     const result = parseBiomarkersFromText(pastedLabText, 'Επικολλημένο_Κείμενο_Εξετάσεων');
-    await applyExtractionToProfile(result);
+    await mergeAndSavePdfResults([result]);
     setPastedLabText('');
     setShowPasteBox(false);
   };
@@ -192,49 +232,50 @@ export default function HealthBiomarkersHub() {
         </div>
       )}
 
-      {/* NEW: PDF LAB REPORT SMART EXTRACTOR (100% Local-First) */}
+      {/* MULTI-PDF LAB REPORT SMART EXTRACTOR (100% Local-First) */}
       <section
-        aria-label="Αυτόματη Ανάγνωση PDF Μικροβιολογικού"
+        aria-label="Αυτόματη Ανάγνωση Πολλαπλών PDF Μικροβιολογικού"
         className="space-y-3.5 rounded-2xl border border-emerald-500/35 bg-zinc-900 p-5 shadow-lg"
       >
         <div className="flex items-start justify-between gap-2">
           <div>
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
               <Sparkles className="h-3 w-3" />
-              100% Τοπική Ανάλυση στη Συσκευή
+              Υποστήριξη Πολλαπλών PDF • 100% Τοπικά
             </span>
             <h2 className="mt-1.5 text-sm font-bold text-zinc-100">
-              Αυτόματη Ανάγνωση Αιματολογικών από PDF
+              Αυτόματη Ανάγνωση & Συγχώνευση Πολλαπλών PDF Εξετάσεων
             </h2>
             <p className="mt-0.5 text-xs text-zinc-400">
-              Ανέβασε το PDF του διαγνωστικού κέντρου ή του myHealth. Το σύστημα εντοπίζει και
-              κρατάει αυτόματα Φερριτίνη, Αιμοσφαιρίνη, Βιταμίνη D, B12, CRP, Γλυκόζη, HCT & CPK
-              χωρίς να στείλει τίποτα στο internet.
+              Επίλεξε <strong>ένα ή περισσότερα PDF ταυτόχρονα</strong> (π.χ. ξεχωριστό PDF για
+              Γενική Αίματος, ξεχωριστό για Βιοχημικές / Βιταμίνες από myHealth ή διαγνωστικό). Το
+              σύστημα ενώνει αυτόματα όλες τις τιμές!
             </p>
           </div>
-          <FileText className="h-6 w-6 shrink-0 text-emerald-400" />
+          <Files className="h-6 w-6 shrink-0 text-emerald-400" />
         </div>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-xs font-bold text-zinc-950 shadow-lg shadow-emerald-500/20 transition active:scale-[0.99]">
             <FileUp className="h-4 w-4" />
-            {isParsingPdf ? 'Ανάλυση PDF...' : 'Ανέβασμα PDF Εξετάσεων'}
+            {isParsingPdf ? 'Ανάλυση Αρχείων PDF...' : 'Επιλογή 1 ή Πολλαπλών PDF'}
             <input
               ref={pdfInputRef}
               type="file"
+              multiple
               accept="application/pdf,.pdf,.txt"
-              onChange={handlePdfUpload}
+              onChange={handleMultiPdfUpload}
               className="hidden"
             />
           </label>
 
           <button
             type="button"
-            onClick={handleTestSamplePdf}
+            onClick={handleTestMultipleSamplePdfs}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-3 text-xs font-semibold text-zinc-200 hover:bg-zinc-700"
           >
             <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-            Δοκιμή με Ενδεικτικό PDF
+            Δοκιμή με 2 PDF Ταυτόχρονα
           </button>
         </div>
 
@@ -271,7 +312,7 @@ export default function HealthBiomarkersHub() {
               onClick={handleParsePastedText}
               className="w-full rounded-lg bg-emerald-500/20 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30"
             >
-              Εξαγωγή Τιμών από Κείμενο
+              Εξαγωγή & Συγχώνευση Τιμών
             </button>
           </div>
         )}
@@ -283,38 +324,74 @@ export default function HealthBiomarkersHub() {
           </div>
         )}
 
-        {pdfResult && pdfResult.detectedItems.length > 0 && (
-          <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-zinc-950 p-3.5">
-            <div className="flex items-center justify-between text-xs font-bold text-emerald-400">
-              <span>Στοιχεία που κρατήθηκαν από: {pdfResult.fileName}</span>
-              <span>{pdfResult.detectedItems.length} δείκτες</span>
+        {/* Persistent List of Uploaded PDFs */}
+        {pdfHistory.length > 0 && (
+          <div className="space-y-2.5 rounded-xl border border-emerald-500/30 bg-zinc-950 p-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-400">
+                Ανεβασμένα Αρχεία Εξετάσεων ({pdfHistory.length})
+              </span>
+              <button
+                type="button"
+                onClick={handleClearAllPdfHistory}
+                className="text-[11px] text-zinc-400 hover:text-amber-400"
+              >
+                Καθαρισμός λίστας
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {pdfResult.detectedItems.map((item) => (
+
+            <div className="space-y-2.5">
+              {pdfHistory.map((pdf) => (
                 <div
-                  key={item.key}
-                  className={`rounded-lg border p-2 text-xs ${
-                    item.status === 'warning'
-                      ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
-                      : 'border-zinc-800 bg-zinc-900 text-zinc-200'
-                  }`}
+                  key={pdf.id}
+                  className="rounded-xl border border-zinc-800 bg-zinc-900/90 p-3 text-xs"
                 >
-                  <div className="text-[10px] text-zinc-400">{item.labelGreek}</div>
-                  <div className="mt-0.5 font-bold">
-                    {item.value} {item.unit}{' '}
-                    {item.status === 'warning' && (
-                      <span className="text-[10px] font-semibold text-amber-400">• Κόφτης</span>
-                    )}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-zinc-100">{pdf.fileName}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePdfFromHistory(pdf.id)}
+                      className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+                      title="Αφαίρεση αρχείου"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
+
+                  {pdf.detectedItems.length > 0 && (
+                    <div className="mt-2 grid grid-cols-2 gap-1.5">
+                      {pdf.detectedItems.map((item) => (
+                        <div
+                          key={item.key}
+                          className={`rounded-lg border px-2.5 py-1.5 ${
+                            item.status === 'warning'
+                              ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
+                              : 'border-zinc-800 bg-zinc-950 text-zinc-200'
+                          }`}
+                        >
+                          <div className="text-[10px] text-zinc-400">{item.labelGreek}</div>
+                          <div className="font-bold">
+                            {item.value} {item.unit}{' '}
+                            {item.status === 'warning' && (
+                              <span className="text-[10px] font-semibold text-amber-400">
+                                • Κόφτης
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {pdf.extraFindingsGreek.length > 0 && (
+                    <div className="mt-2 border-t border-zinc-800/80 pt-1.5 text-[11px] text-zinc-300">
+                      <strong className="text-emerald-400">Επιπλέον: </strong>
+                      {pdf.extraFindingsGreek.join(' • ')}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-            {pdfResult.extraFindingsGreek.length > 0 && (
-              <div className="border-t border-zinc-800 pt-2 text-[11px] text-zinc-300">
-                <strong className="text-emerald-400">Επιπλέον ευρήματα PDF: </strong>
-                {pdfResult.extraFindingsGreek.join(' • ')}
-              </div>
-            )}
           </div>
         )}
       </section>
@@ -441,7 +518,7 @@ export default function HealthBiomarkersHub() {
         <div className="flex items-center gap-2">
           <Droplets className="h-4 w-4 text-emerald-400" />
           <h2 className="text-sm font-bold text-zinc-100">
-            Αιματολογικοί Δείκτες (Biomarker Dampeners)
+            Αιματολογικοί Δείκτες (Συγχωνευμένο Προφίλ)
           </h2>
         </div>
 

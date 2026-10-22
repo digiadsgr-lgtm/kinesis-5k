@@ -11,6 +11,7 @@ import {
   UserProgressionState,
 } from '@/types/kinesis';
 import { applyMovementToProgression } from '@/lib/engine/recommender';
+import { PdfExtractionResult } from '@/lib/parser/pdfBiomarkerExtractor';
 
 const DB_NAME = 'kinesis_sit_to_5k_db';
 const DB_VERSION = 1;
@@ -146,6 +147,14 @@ async function clearStore(storeName: 'kv' | 'logs' | 'rejections'): Promise<void
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+}
+
+export async function getUploadedPdfHistory(): Promise<PdfExtractionResult[]> {
+  return getKv<PdfExtractionResult[]>('pdf_history', []);
+}
+
+export async function saveUploadedPdfHistory(history: PdfExtractionResult[]): Promise<void> {
+  await setKv('pdf_history', history);
 }
 
 export async function getKinesisSnapshot(): Promise<KinesisDatabaseDump> {
@@ -290,7 +299,7 @@ export async function seedDemoData(): Promise<KinesisDatabaseDump> {
   };
 
   const demoBiomarkers: BiomarkerProfile = {
-    ferritin: 26, // Slightly low ferritin to demonstrate biomarker dampener notice
+    ferritin: 26,
     hemoglobin: 13.8,
     vitaminD: 28,
     vitaminB12: 390,

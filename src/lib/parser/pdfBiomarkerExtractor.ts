@@ -7,15 +7,24 @@ export interface ExtractedBiomarkerItem {
   unit: string;
   rawMatch: string;
   status: 'normal' | 'warning';
+  sourceFileName?: string;
 }
 
 export interface PdfExtractionResult {
+  id: string;
   fileName: string;
   extractedAt: string;
   detectedItems: ExtractedBiomarkerItem[];
   extraFindingsGreek: string[];
   updatedProfile: Partial<BiomarkerProfile>;
   rawTextPreview: string;
+}
+
+export interface MultiPdfExtractionSummary {
+  resultsPerFile: PdfExtractionResult[];
+  mergedProfile: Partial<BiomarkerProfile>;
+  allDetectedItems: ExtractedBiomarkerItem[];
+  allExtraFindingsGreek: string[];
 }
 
 /**
@@ -332,6 +341,7 @@ export function parseBiomarkersFromText(
             unit: spec.unit,
             rawMatch: m[0].trim(),
             status: spec.isWarning(numericValue) ? 'warning' : 'normal',
+            sourceFileName: fileName,
           });
           updatedProfile[spec.key] = numericValue;
           break;
@@ -352,6 +362,7 @@ export function parseBiomarkersFromText(
   }
 
   return {
+    id: `pdf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     fileName,
     extractedAt: new Date().toISOString(),
     detectedItems,
@@ -378,26 +389,82 @@ export async function extractBiomarkersFromFile(file: File): Promise<PdfExtracti
 }
 
 /**
+ * Batch processes multiple PDF or text files and merges all detected biomarkers across files.
+ */
+export async function extractBiomarkersFromMultipleFiles(
+  files: File[]
+): Promise<MultiPdfExtractionSummary> {
+  const resultsPerFile: PdfExtractionResult[] = [];
+  const mergedProfile: Partial<BiomarkerProfile> = {};
+  const itemByKey = new Map<string, ExtractedBiomarkerItem>();
+  const extraSet = new Set<string>();
+
+  for (const file of files) {
+    const res = await extractBiomarkersFromFile(file);
+    resultsPerFile.push(res);
+
+    Object.assign(mergedProfile, res.updatedProfile);
+    for (const item of res.detectedItems) {
+      itemByKey.set(item.key, item);
+    }
+    for (const extra of res.extraFindingsGreek) {
+      extraSet.add(`${extra} (${file.name})`);
+    }
+  }
+
+  return {
+    resultsPerFile,
+    mergedProfile,
+    allDetectedItems: Array.from(itemByKey.values()),
+    allExtraFindingsGreek: Array.from(extraSet),
+  };
+}
+
+/**
  * Generates a real, standards-compliant PDF binary containing a Greek microbiological report
  * so users can test the PDF upload/extraction pipeline with 1 click.
  */
-export function createSampleGreekLabPdfBlob(): Blob {
-  const reportLines = [
-    'DIAGNOSTIC LAB ATHENS - MIKROBIOLOGIKO ERGASTIRIO',
-    'ΑΠΟΤΕΛΕΣΜΑΤΑ ΑΙΜΑΤΟΛΟΓΙΚΟΥ & ΒΙΟΧΗΜΙΚΟΥ ΕΛΕΓΧΟΥ',
-    '------------------------------------------------------------',
-    'Αιμοσφαιρίνη (Hemoglobin HGB) : 13.4 g/dL   (Φυσ. Τιμές: 13.5 - 17.5)',
-    'Αιματοκρίτης (HCT)            : 40.2 %      (Φυσ. Τιμές: 40.0 - 50.0)',
-    'Φερριτίνη Ορού (Ferritin)     : 21.5 ng/mL  (Φυσ. Τιμές: 30.0 - 300.0)',
-    'Σίδηρος Ορού (Serum Iron)     : 58 μg/dL    (Φυσ. Τιμές: 65 - 175)',
-    'Βιταμίνη D (25-OH Vitamin D)  : 22.8 ng/mL  (Επάρκεια: 30 - 100)',
-    'Βιταμίνη B12 (Vitamin B12)    : 340 pg/mL   (Φυσ. Τιμές: 200 - 900)',
-    'CRP Ποσοτικό (hs-CRP)         : 1.4 mg/L    (Φυσ. Τιμές: < 3.0)',
-    'Γλυκόζη Νηστείας (Glucose)    : 94 mg/dL    (Φυσ. Τιμές: 70 - 100)',
-    'Κρεατινική Κινάση (CPK)       : 245 U/L     (Φυσ. Τιμές: 30 - 190)',
-  ];
+export function createSampleGreekLabPdfBlob(
+  variant: 'full' | 'hematology' | 'biochemistry' = 'full'
+): Blob {
+  let reportLines: string[];
 
-  // Encode each line as UTF-16BE hex string <FEFF...> inside a valid PDF stream
+  if (variant === 'hematology') {
+    reportLines = [
+      'DIAGNOSTIC LAB ATHENS - ΓΕΝΙΚΗ ΑΙΜΑΤΟΣ & ΣΙΔΗΡΟΣ',
+      '------------------------------------------------------------',
+      'Αιμοσφαιρίνη (Hemoglobin HGB) : 13.4 g/dL   (Φυσ. Τιμές: 13.5 - 17.5)',
+      'Αιματοκρίτης (HCT)            : 40.2 %      (Φυσ. Τιμές: 40.0 - 50.0)',
+      'Φερριτίνη Ορού (Ferritin)     : 21.5 ng/mL  (Φυσ. Τιμές: 30.0 - 300.0)',
+      'Σίδηρος Ορού (Serum Iron)     : 58 μg/dL    (Φυσ. Τιμές: 65 - 175)',
+    ];
+  } else if (variant === 'biochemistry') {
+    reportLines = [
+      'DIAGNOSTIC LAB ATHENS - ΒΙΟΧΗΜΙΚΟΣ & ΒΙΤΑΜΙΝΕΣ',
+      '------------------------------------------------------------',
+      'Βιταμίνη D (25-OH Vitamin D)  : 22.8 ng/mL  (Επάρκεια: 30 - 100)',
+      'Βιταμίνη B12 (Vitamin B12)    : 340 pg/mL   (Φυσ. Τιμές: 200 - 900)',
+      'CRP Ποσοτικό (hs-CRP)         : 1.4 mg/L    (Φυσ. Τιμές: < 3.0)',
+      'Γλυκόζη Νηστείας (Glucose)    : 94 mg/dL    (Φυσ. Τιμές: 70 - 100)',
+      'Κρεατινική Κινάση (CPK)       : 245 U/L     (Φυσ. Τιμές: 30 - 190)',
+    ];
+  } else {
+    reportLines = [
+      'DIAGNOSTIC LAB ATHENS - MIKROBIOLOGIKO ERGASTIRIO',
+      'ΑΠΟΤΕΛΕΣΜΑΤΑ ΑΙΜΑΤΟΛΟΓΙΚΟΥ & ΒΙΟΧΗΜΙΚΟΥ ΕΛΕΓΧΟΥ',
+      '------------------------------------------------------------',
+      'Αιμοσφαιρίνη (Hemoglobin HGB) : 13.4 g/dL   (Φυσ. Τιμές: 13.5 - 17.5)',
+      'Αιματοκρίτης (HCT)            : 40.2 %      (Φυσ. Τιμές: 40.0 - 50.0)',
+      'Φερριτίνη Ορού (Ferritin)     : 21.5 ng/mL  (Φυσ. Τιμές: 30.0 - 300.0)',
+      'Σίδηρος Ορού (Serum Iron)     : 58 μg/dL    (Φυσ. Τιμές: 65 - 175)',
+      'Βιταμίνη D (25-OH Vitamin D)  : 22.8 ng/mL  (Επάρκεια: 30 - 100)',
+      'Βιταμίνη B12 (Vitamin B12)    : 340 pg/mL   (Φυσ. Τιμές: 200 - 900)',
+      'CRP Ποσοτικό (hs-CRP)         : 1.4 mg/L    (Φυσ. Τιμές: < 3.0)',
+      'Γλυκόζη Νηστείας (Glucose)    : 94 mg/dL    (Φυσ. Τιμές: 70 - 100)',
+      'Κρεατινική Κινάση (CPK)       : 245 U/L     (Φυσ. Τιμές: 30 - 190)',
+    ];
+  }
+
   const toUtf16BeHex = (str: string) => {
     let hex = 'FEFF';
     for (let i = 0; i < str.length; i++) {
