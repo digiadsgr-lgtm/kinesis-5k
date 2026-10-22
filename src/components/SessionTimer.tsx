@@ -74,7 +74,7 @@ export default function SessionTimer({
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-between overflow-y-auto bg-zinc-950/98 p-4 pb-8 text-zinc-100 backdrop-blur-lg">
       {/* Top Bar */}
-      <div className="mx-auto flex w-full max-w-md items-center justify-between">
+      <div className="mx-auto flex w-full max-w-2xl items-center justify-between">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400">
           <Sparkles className="h-3.5 w-3.5" />
           {MODALITY_LABELS_GREEK[session.modality]} • Χωρίς Εξοπλισμό
@@ -91,73 +91,81 @@ export default function SessionTimer({
 
       {/* Main Content */}
       {!isFinishing ? (
-        <div className="mx-auto my-auto flex w-full max-w-md flex-col items-center py-3 text-center">
+        <div className="mx-auto my-auto flex w-full max-w-2xl flex-col items-center py-3 text-center">
           <p className="text-xs font-medium text-emerald-400">{session.intensityLabel}</p>
-          <h2 className="mt-1 text-lg font-bold leading-snug text-zinc-50">{session.title}</h2>
+          <h2 className="mt-1 text-lg font-bold leading-snug text-zinc-50 sm:text-xl">
+            {session.title}
+          </h2>
 
-          {/* Large Readable Countdown Circle */}
-          <div className="relative my-4 flex h-44 w-44 flex-col items-center justify-center rounded-full border-4 border-zinc-800 bg-zinc-900/80 shadow-2xl">
-            <div
-              className="absolute inset-0 rounded-full border-4 border-emerald-500/80 transition-all duration-500"
-              style={{
-                clipPath: `inset(${100 - progressPercent}% 0 0 0)`,
-              }}
-            />
-            <span className="font-mono text-4xl font-bold tracking-tight text-zinc-50">
-              {formatTime(secondsLeft)}
-            </span>
-            <span className="mt-1 text-xs font-medium text-zinc-400">
-              {isRunning ? 'Σε εξέλιξη • Με τον δικό σου ρυθμό' : 'Σε παύση'}
-            </span>
-          </div>
-
-          {/* Easy-to-Read Numbered Exercise Steps */}
-          {session.exercisesGreek && session.exercisesGreek.length > 0 && (
-            <div className="mb-4 w-full rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-left">
-              <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
-                <ListChecks className="h-4 w-4" />
-                <span>Τι κάνουμε βήμα-βήμα:</span>
+          <div className="mt-4 grid w-full grid-cols-1 items-center gap-5 md:grid-cols-12">
+            {/* Left / Top: Large Readable Countdown Circle & Controls */}
+            <div className="flex flex-col items-center md:col-span-5">
+              <div className="relative my-3 flex h-44 w-44 flex-col items-center justify-center rounded-full border-4 border-zinc-800 bg-zinc-900/80 shadow-2xl">
+                <div
+                  className="absolute inset-0 rounded-full border-4 border-emerald-500/80 transition-all duration-500"
+                  style={{
+                    clipPath: `inset(${100 - progressPercent}% 0 0 0)`,
+                  }}
+                />
+                <span className="font-mono text-4xl font-bold tracking-tight text-zinc-50">
+                  {formatTime(secondsLeft)}
+                </span>
+                <span className="mt-1 text-xs font-medium text-zinc-400">
+                  {isRunning ? 'Σε εξέλιξη • Με τον ρυθμό σου' : 'Σε παύση'}
+                </span>
               </div>
-              <ol className="mt-2.5 space-y-2.5 text-sm leading-relaxed text-zinc-100">
-                {session.exercisesGreek.map((ex, idx) => (
-                  <li key={idx} className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-400">
-                      {idx + 1}
-                    </span>
-                    <span>{ex.replace(/^Βήμα\s*\d+\s*[:(-]?\s*/i, '')}</span>
-                  </li>
-                ))}
-              </ol>
+
+              <div className="mt-2 flex w-full items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSecondsLeft(totalSeconds)}
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900 text-zinc-300 active:scale-95"
+                  title="Επαναφορά χρόνου"
+                >
+                  <RotateCcw className="h-5 w-5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsRunning((prev) => !prev)}
+                  className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-6 text-base font-bold text-zinc-950 shadow-lg shadow-emerald-500/20 active:scale-98"
+                >
+                  {isRunning ? (
+                    <>
+                      <Pause className="h-5 w-5 fill-current" />
+                      Παύση
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-5 w-5 fill-current" />
+                      Συνέχεια
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-          )}
 
-          <div className="flex w-full items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={() => setSecondsLeft(totalSeconds)}
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900 text-zinc-300 active:scale-95"
-              title="Επαναφορά χρόνου"
-            >
-              <RotateCcw className="h-5 w-5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsRunning((prev) => !prev)}
-              className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-6 text-base font-bold text-zinc-950 shadow-lg shadow-emerald-500/20 active:scale-98"
-            >
-              {isRunning ? (
-                <>
-                  <Pause className="h-5 w-5 fill-current" />
-                  Παύση
-                </>
-              ) : (
-                <>
-                  <Play className="h-5 w-5 fill-current" />
-                  Συνέχεια
-                </>
+            {/* Right / Bottom: Easy-to-Read Numbered Exercise Steps */}
+            <div className="w-full md:col-span-7">
+              {session.exercisesGreek && session.exercisesGreek.length > 0 && (
+                <div className="w-full rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-left">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+                    <ListChecks className="h-4 w-4" />
+                    <span>Τι κάνουμε βήμα-βήμα:</span>
+                  </div>
+                  <ol className="mt-2.5 space-y-2.5 text-sm leading-relaxed text-zinc-100">
+                    {session.exercisesGreek.map((ex, idx) => (
+                      <li key={idx} className="flex items-start gap-2.5">
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-400">
+                          {idx + 1}
+                        </span>
+                        <span>{ex.replace(/^Βήμα\s*\d+\s*[:(-]?\s*/i, '')}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
               )}
-            </button>
+            </div>
           </div>
 
           <button
@@ -166,7 +174,7 @@ export default function SessionTimer({
               setIsRunning(false);
               setIsFinishing(true);
             }}
-            className="mt-3 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 py-3 text-sm font-bold text-emerald-300 hover:bg-emerald-500/20"
+            className="mt-4 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 py-3 text-sm font-bold text-emerald-300 hover:bg-emerald-500/20"
           >
             <CheckCircle2 className="h-4 w-4" />
             Τέλειωσα! Καταγραφή (+{session.habitPointsAward} πόντοι)
