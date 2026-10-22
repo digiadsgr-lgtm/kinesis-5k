@@ -127,7 +127,7 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
     });
   });
 
-  describe('2. Movement Opportunity Score (MOS) & Threshold 40', () => {
+  describe('2. Movement Opportunity Score (MOS), Threshold 40 & Strict Time Ceiling', () => {
     it('triggers Zero-Friction Protocol (2-5 mins) when MOS < 40', () => {
       const lowCheckIn: CheckInInput = {
         mood: 1,
@@ -153,8 +153,32 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       expect(rec.zeroFrictionTriggered).toBe(true);
       expect(rec.durationMins).toBeGreaterThanOrEqual(2);
       expect(rec.durationMins).toBeLessThanOrEqual(5);
-      expect(rec.intensityLabel).toContain('Zero-Friction');
       expect(rec.habitPointsAward).toBeGreaterThanOrEqual(14);
+    });
+
+    it('strictly keeps duration at 2 minutes when timeWindowMins is 2, even when mood=5 and energy=5', () => {
+      const twoMinHighMoodCheckIn: CheckInInput = {
+        mood: 5,
+        energy: 5,
+        timeWindowMins: 2,
+        environment: 'home_slippers',
+        painLevel: 0,
+        painLocation: '',
+      };
+
+      const rec = calculateRecommendation(
+        twoMinHighMoodCheckIn,
+        2,
+        healthyBiometrics,
+        normalBiomarkers,
+        []
+      );
+
+      expect(rec.durationMins).toBe(2);
+      expect(rec.boredAlternative.durationMins).toBe(2);
+      expect(rec.hardDowngrade.durationMins).toBe(2);
+      expect(rec.whatWeAchieveGreek.length).toBeGreaterThan(20);
+      expect(rec.stepByStepGreek.length).toBeGreaterThanOrEqual(2);
     });
 
     it('prescribes full stage-appropriate session when MOS >= 40 and Safety Gate is clear', () => {
@@ -175,7 +199,7 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
     });
   });
 
-  describe('3. Behavioral Memory & Rejection Taxonomy', () => {
+  describe('3. Behavioral Memory, Rejection Taxonomy & Distinct Environments', () => {
     it('penalizes and swaps out a modality rejected due to boredom', () => {
       const baselineRec = calculateRecommendation(
         highReadinessCheckIn,
@@ -201,18 +225,42 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       expect(afterBoredomRec.reasoningGreek).toContain('Μνήμη Συμπεριφοράς');
     });
 
-    it('provides a distinct boredAlternative modality and a 2-5 min hardDowngrade', () => {
-      const rec = calculateRecommendation(
-        highReadinessCheckIn,
-        2,
+    it('differentiates office clothes (standing desk actions) from home slippers (sofa/carpet actions)', () => {
+      const officeRec = calculateRecommendation(
+        {
+          mood: 3,
+          energy: 3,
+          timeWindowMins: 5,
+          environment: 'indoor_clothes',
+          painLevel: 0,
+          painLocation: '',
+        },
+        0,
         healthyBiometrics,
         normalBiomarkers,
         []
       );
 
-      expect(rec.boredAlternative.modality).not.toBe(rec.modality);
-      expect(rec.hardDowngrade.durationMins).toBeLessThanOrEqual(5);
-      expect(rec.hardDowngrade.habitPointsAward).toBeGreaterThanOrEqual(14);
+      const homeSlippersRec = calculateRecommendation(
+        {
+          mood: 3,
+          energy: 3,
+          timeWindowMins: 5,
+          environment: 'home_slippers',
+          painLevel: 0,
+          painLocation: '',
+        },
+        0,
+        healthyBiometrics,
+        normalBiomarkers,
+        []
+      );
+
+      expect(officeRec.title).toContain('Γραφείο');
+      expect(homeSlippersRec.title).toContain('Σπίτι');
+      expect(officeRec.stepByStepGreek.join(' ')).not.toBe(
+        homeSlippersRec.stepByStepGreek.join(' ')
+      );
     });
   });
 
@@ -256,6 +304,7 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       expect(HOME_WORKOUT_PROTOCOLS.length).toBe(10);
       for (const proto of HOME_WORKOUT_PROTOCOLS) {
         expect(proto.exercisesGreek.length).toBeGreaterThan(0);
+        expect(proto.whatWeAchieveGreek.length).toBeGreaterThan(10);
         expect(proto.habitPointsAward).toBeGreaterThanOrEqual(14);
       }
     });

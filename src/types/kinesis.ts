@@ -1,6 +1,10 @@
 export type StageId = 0 | 1 | 2 | 3 | 4 | 5;
 
-export type EnvironmentType = 'indoor_clothes' | 'home_gear' | 'outdoor';
+export type EnvironmentType =
+  | 'indoor_clothes' // Γραφείο / Ρούχα Γραφείου (όρθιες, διακριτικές κινήσεις χωρίς ίδρωμα)
+  | 'home_slippers' // Σπίτι / Παντόφλα & Ρούχα Σπιτιού (καρέκλα, καναπές, χαλί, τοίχος — χωρίς παπούτσια)
+  | 'home_gear' // Σπίτι / Με Αθλητικά ή Διάδρομο (πλήρης εκγύμναση σπιτιού, σκάλα, διάδρομος)
+  | 'outdoor'; // Έξω / Αθλητικά Παπούτσια (περπάτημα, εναλλαγές, τρέξιμο)
 
 export type ModalityType =
   | 'walk'
@@ -57,6 +61,8 @@ export interface AlternativePrescription {
   durationMins: number;
   intensityLabel: string;
   reasoningGreek: string;
+  whatWeAchieveGreek: string;
+  stepByStepGreek: string[];
   habitPointsAward: number;
   structuralPointsAward: number;
 }
@@ -68,6 +74,8 @@ export interface RecommendationOutput {
   durationMins: number;
   intensityLabel: string;
   reasoningGreek: string;
+  whatWeAchieveGreek: string;
+  stepByStepGreek: string[];
   safetyAlertsGreek: string[];
   mosScore: number;
   habitPointsAward: number;
@@ -205,16 +213,17 @@ export const MODALITY_LABELS_GREEK: Record<ModalityType, string> = {
   walk: 'Ζωηρό Περπάτημα',
   stairs: 'Ανάβαση Σκάλας',
   treadmill: 'Διάδρομος',
-  mobility: 'Αποσυμπίεση & Κινητικότητα',
-  strength: 'Θωράκιση Τενόντων & Κορμού',
+  mobility: 'Ξεμπλοκάρισμα Σώματος & Διατάσεις',
+  strength: 'Ενδυνάμωση Ποδιών & Κορμού',
   walk_run: 'Εναλλαγές Περπάτημα / Τρέξιμο',
   run: 'Συνεχόμενο Τρέξιμο',
 };
 
 export const ENVIRONMENT_LABELS_GREEK: Record<EnvironmentType, string> = {
-  indoor_clothes: 'Με ρούχα γραφείου / Σπίτι (Υψηλή τριβή αλλαγής)',
-  home_gear: 'Σε χώρο με άνετα ρούχα / Διάδρομο',
-  outdoor: 'Έτοιμος έξω / Αθλητικά παπούτσια',
+  indoor_clothes: 'Γραφείο / Ρούχα Γραφείου (όρθιες κινήσεις, χωρίς ίδρωμα)',
+  home_slippers: 'Σπίτι / Με Παντόφλα & Ρούχα Σπιτιού (καναπές, χαλί, καρέκλα)',
+  home_gear: 'Σπίτι / Με Αθλητικά Παπούτσια ή Διάδρομο',
+  outdoor: 'Έξω στον Δρόμο / Πάρκο με Αθλητικά',
 };
 
 export const REJECTION_REASON_LABELS_GREEK: Record<RejectionReason, string> = {

@@ -16,6 +16,7 @@ import {
   Shirt,
   Smile,
   Sparkles,
+  Target,
   TrendingDown,
   Zap,
 } from 'lucide-react';
@@ -62,12 +63,8 @@ export default function TodayCommandCenter() {
   const [checkIn, setCheckIn] = useState<CheckInInput>(DEFAULT_CHECK_IN);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Negotiated override (when user taps "Σήμερα δυσκολεύομαι πολύ", "Μπορώ, αλλά βαριέμαι", or picks a Home Workout)
   const [overridePrescription, setOverridePrescription] = useState<{
-    prescription: AlternativePrescription & {
-      exercisesGreek?: string[];
-      equipmentGreek?: string;
-    };
+    prescription: AlternativePrescription;
     mode: 'bored_swap' | 'micro_step';
   } | null>(null);
 
@@ -122,10 +119,10 @@ export default function TodayCommandCenter() {
         durationMins: overridePrescription.prescription.durationMins,
         intensityLabel: overridePrescription.prescription.intensityLabel,
         reasoningGreek: overridePrescription.prescription.reasoningGreek,
+        whatWeAchieveGreek: overridePrescription.prescription.whatWeAchieveGreek,
+        stepByStepGreek: overridePrescription.prescription.stepByStepGreek,
         habitPointsAward: overridePrescription.prescription.habitPointsAward,
         structuralPointsAward: overridePrescription.prescription.structuralPointsAward,
-        exercisesGreek: overridePrescription.prescription.exercisesGreek,
-        equipmentGreek: overridePrescription.prescription.equipmentGreek,
         negotiatedMode: overridePrescription.mode,
       }
     : {
@@ -134,10 +131,10 @@ export default function TodayCommandCenter() {
         durationMins: recommendation.durationMins,
         intensityLabel: recommendation.intensityLabel,
         reasoningGreek: recommendation.reasoningGreek,
+        whatWeAchieveGreek: recommendation.whatWeAchieveGreek,
+        stepByStepGreek: recommendation.stepByStepGreek,
         habitPointsAward: recommendation.habitPointsAward,
         structuralPointsAward: recommendation.structuralPointsAward,
-        exercisesGreek: undefined,
-        equipmentGreek: undefined,
         negotiatedMode: 'primary' as const,
       };
 
@@ -151,7 +148,7 @@ export default function TodayCommandCenter() {
       habitPointsAward: displayedPrescription.habitPointsAward,
       structuralPointsAward: displayedPrescription.structuralPointsAward,
       wasNegotiated: displayedPrescription.negotiatedMode,
-      exercisesGreek: displayedPrescription.exercisesGreek,
+      exercisesGreek: displayedPrescription.stepByStepGreek,
     });
   };
 
@@ -173,20 +170,32 @@ export default function TodayCommandCenter() {
         mode: 'bored_swap',
       });
     } else {
-      const protocol =
-        HOME_WORKOUT_PROTOCOLS[(boredCycleIndex - 1) % HOME_WORKOUT_PROTOCOLS.length];
+      // Filter protocols appropriate for current environment when cycling
+      const envPool = HOME_WORKOUT_PROTOCOLS.filter((p) => {
+        if (checkIn.environment === 'indoor_clothes') return p.category === 'office_clothes';
+        if (checkIn.environment === 'home_slippers')
+          return p.category === 'home_slippers' || p.category === 'tendon_core';
+        return true;
+      });
+      const pool = envPool.length > 0 ? envPool : HOME_WORKOUT_PROTOCOLS;
+      const protocol = pool[(boredCycleIndex - 1) % pool.length];
+      // Strictly cap duration to the user's selected timeWindowMins
+      const effectiveMins = Math.min(protocol.durationMins, checkIn.timeWindowMins);
+
       setOverridePrescription({
         prescription: {
           id: protocol.id,
-          title: protocol.titleGreek,
+          title: `${effectiveMins}' ${protocol.titleGreek.replace(/^\d+'\s*/, '')}`,
           modality: protocol.modality,
-          durationMins: protocol.durationMins,
+          durationMins: effectiveMins,
           intensityLabel: protocol.intensityLabel,
-          reasoningGreek: `${protocol.reasoningGreek} (Εξοπλισμός: ${protocol.equipmentGreek})`,
+          reasoningGreek: `Εναλλαγή σε πρωτόκολλο κατάλληλο για «${
+            ENVIRONMENT_LABELS_GREEK[checkIn.environment]
+          }» προσαρμοσμένο στα ${effectiveMins} διαθέσιμα λεπτά σου.`,
+          whatWeAchieveGreek: protocol.whatWeAchieveGreek,
+          stepByStepGreek: protocol.exercisesGreek,
           habitPointsAward: protocol.habitPointsAward,
           structuralPointsAward: protocol.structuralPointsAward,
-          exercisesGreek: protocol.exercisesGreek,
-          equipmentGreek: protocol.equipmentGreek,
         },
         mode: 'bored_swap',
       });
@@ -196,18 +205,22 @@ export default function TodayCommandCenter() {
 
   const handleSelectHomeProtocol = (protocol: HomeWorkoutProtocol) => {
     setCompletionBanner(null);
+    const effectiveMins = Math.min(protocol.durationMins, checkIn.timeWindowMins);
     setOverridePrescription({
       prescription: {
         id: protocol.id,
-        title: protocol.titleGreek,
+        title:
+          effectiveMins !== protocol.durationMins
+            ? `${effectiveMins}' ${protocol.titleGreek.replace(/^\d+'\s*/, '')} (Προσαρμοσμένο στα ${effectiveMins}')`
+            : protocol.titleGreek,
         modality: protocol.modality,
-        durationMins: protocol.durationMins,
+        durationMins: effectiveMins,
         intensityLabel: protocol.intensityLabel,
-        reasoningGreek: `${protocol.reasoningGreek} (Εξοπλισμός: ${protocol.equipmentGreek})`,
+        reasoningGreek: `Επιλέχθηκε από τη βιβλιοθήκη εκγύμνασης (${protocol.equipmentGreek}).`,
+        whatWeAchieveGreek: protocol.whatWeAchieveGreek,
+        stepByStepGreek: protocol.exercisesGreek,
         habitPointsAward: protocol.habitPointsAward,
         structuralPointsAward: protocol.structuralPointsAward,
-        exercisesGreek: protocol.exercisesGreek,
-        equipmentGreek: protocol.equipmentGreek,
       },
       mode: 'bored_swap',
     });
@@ -386,35 +399,43 @@ export default function TodayCommandCenter() {
           {displayedPrescription.intensityLabel}
         </p>
 
-        {/* Plain-Greek Reasoning Box */}
-        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/80 p-3.5">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-300">
-            <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Γιατί προτείνεται αυτό σήμερα</span>
+        {/* 1. WHAT WE ACHIEVE IN THE BODY (Τι πετυχαίνουμε) */}
+        <div className="mt-4 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3.5">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
+            <Target className="h-4 w-4 text-emerald-400" />
+            <span>Τι πετυχαίνουμε με αυτή την κίνηση:</span>
           </div>
-          <p className="mt-1.5 text-xs leading-relaxed text-zinc-300">
-            {displayedPrescription.reasoningGreek}
+          <p className="mt-1 text-xs leading-relaxed text-zinc-200">
+            {displayedPrescription.whatWeAchieveGreek}
           </p>
         </div>
 
-        {/* Step-by-step exercises if a Home Workout Protocol is active */}
-        {displayedPrescription.exercisesGreek &&
-          displayedPrescription.exercisesGreek.length > 0 && (
-            <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3.5">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
-                <ListChecks className="h-4 w-4" />
-                <span>Δομή Ασκήσεων Πρωτοκόλλου:</span>
-              </div>
-              <ul className="mt-2 space-y-1 text-xs text-zinc-200">
-                {displayedPrescription.exercisesGreek.map((step, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+        {/* 2. EXACT STEP-BY-STEP INSTRUCTIONS (Τι κάνω ακριβώς βήμα-βήμα) */}
+        <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-100">
+            <ListChecks className="h-4 w-4 text-emerald-400" />
+            <span>Τι κάνω ακριβώς (Βήμα-Βήμα):</span>
+          </div>
+          <ul className="mt-2 space-y-2 text-xs leading-relaxed text-zinc-200">
+            {displayedPrescription.stepByStepGreek.map((step, idx) => (
+              <li key={idx} className="flex items-start gap-2">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                <span>{step}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* 3. Plain-Greek Reasoning Box (Γιατί προτείνεται αυτό σήμερα) */}
+        <div className="mt-3 rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-3">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-400">
+            <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+            <span>Γιατί προτείνεται αυτό σήμερα</span>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+            {displayedPrescription.reasoningGreek}
+          </p>
+        </div>
 
         {/* Points Reward Preview */}
         <div className="mt-3.5 flex items-center justify-between text-xs text-zinc-400">
@@ -462,126 +483,6 @@ export default function TodayCommandCenter() {
         </div>
       </section>
 
-      {/* HOME WORKOUT & PHYSICAL CONDITIONING ALTERNATIVES HUB */}
-      <section
-        aria-label="Εναλλακτικές Σωματικής Εκγύμνασης στο Σπίτι"
-        className="space-y-3.5 rounded-2xl border border-zinc-800/90 bg-zinc-900/90 p-5"
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <div className="flex items-center gap-2 text-emerald-400">
-              <Home className="h-4 w-4" />
-              <h3 className="text-sm font-bold text-zinc-100">
-                Εναλλακτικές Εκγύμνασης στο Σπίτι (10 Πρωτόκολλα)
-              </h3>
-            </div>
-            <p className="mt-1 text-xs text-zinc-400">
-              Πλήρης γκάμα ασκήσεων δύναμης, καλλισθενικής, θωράκισης τενόντων και αερόβιας ροής
-              χωρίς να βγεις από το σπίτι.
-            </p>
-          </div>
-          <Dumbbell className="h-5 w-5 shrink-0 text-zinc-500" />
-        </div>
-
-        {/* Category Filter Pills */}
-        <div className="flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            onClick={() => setSelectedHomeCategory('all')}
-            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-              selectedHomeCategory === 'all'
-                ? 'bg-emerald-500 text-zinc-950'
-                : 'border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            Όλα ({HOME_WORKOUT_PROTOCOLS.length})
-          </button>
-          {(Object.keys(HOME_WORKOUT_CATEGORY_LABELS) as HomeWorkoutCategory[]).map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setSelectedHomeCategory(cat)}
-              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                selectedHomeCategory === cat
-                  ? 'bg-emerald-500 text-zinc-950'
-                  : 'border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              {HOME_WORKOUT_CATEGORY_LABELS[cat]}
-            </button>
-          ))}
-        </div>
-
-        {/* Protocol Cards List */}
-        <div className="space-y-2.5 pt-1">
-          {filteredHomeWorkouts.map((proto) => (
-            <div
-              key={proto.id}
-              className="rounded-xl border border-zinc-800 bg-zinc-950/90 p-3.5 transition hover:border-emerald-500/40"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <span className="inline-block rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-                    {proto.categoryLabelGreek} • {proto.equipmentGreek}
-                  </span>
-                  <h4 className="mt-1 text-xs font-bold text-zinc-100">{proto.titleGreek}</h4>
-                </div>
-                <span className="shrink-0 rounded-lg bg-zinc-900 px-2 py-1 text-xs font-bold text-emerald-400">
-                  {proto.durationMins}&apos;
-                </span>
-              </div>
-
-              <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-400">
-                {proto.reasoningGreek}
-              </p>
-
-              <ul className="mt-2 space-y-1 border-t border-zinc-800/80 pt-2 text-[11px] text-zinc-300">
-                {proto.exercisesGreek.map((ex, i) => (
-                  <li key={i} className="flex items-start gap-1.5">
-                    <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                    <span>{ex}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="mt-3 flex items-center justify-between gap-2 border-t border-zinc-900 pt-2.5">
-                <span className="text-[11px] font-medium text-zinc-400">
-                  +{proto.habitPointsAward} Συνέπεια • +{proto.structuralPointsAward} Δομική Ανοχή
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleSelectHomeProtocol(proto)}
-                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-[11px] font-semibold text-zinc-200 hover:bg-zinc-800"
-                  >
-                    Επιλογή ως Κύρια
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setActiveTimer({
-                        title: proto.titleGreek,
-                        modality: proto.modality,
-                        durationMins: proto.durationMins,
-                        intensityLabel: proto.intensityLabel,
-                        habitPointsAward: proto.habitPointsAward,
-                        structuralPointsAward: proto.structuralPointsAward,
-                        wasNegotiated: 'bored_swap',
-                        exercisesGreek: proto.exercisesGreek,
-                      })
-                    }
-                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-[11px] font-bold text-zinc-950"
-                  >
-                    <Play className="h-3 w-3 fill-current" />
-                    Έναρξη
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* REAL-TIME CHECK-IN PANEL */}
       <section
         aria-label="Σημερινή Κατάσταση & Κόστος Εκκίνησης"
@@ -592,6 +493,67 @@ export default function TodayCommandCenter() {
             Ρύθμιση Πραγματικής Κατάστασης (Check-in)
           </h3>
           <span className="text-[11px] text-zinc-400">Αλλάζει άμεσα την πρόταση</span>
+        </div>
+
+        {/* Time Window Micro-Windows (Moved to top of check-in for instant access) */}
+        <div>
+          <label className="flex items-center justify-between text-xs font-medium text-zinc-300">
+            <span className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-emerald-400" />
+              Διαθέσιμος Χρόνος (Αυστηρό Ανώτατο Όριο)
+            </span>
+            <span className="font-semibold text-emerald-400">{checkIn.timeWindowMins} λεπτά</span>
+          </label>
+          <div className="mt-2 grid grid-cols-7 gap-1">
+            {TIME_WINDOWS.map((mins) => (
+              <button
+                key={mins}
+                type="button"
+                onClick={() => updateCheckInField('timeWindowMins', mins)}
+                className={`rounded-xl py-2 text-xs font-semibold transition ${
+                  checkIn.timeWindowMins === mins
+                    ? 'bg-emerald-500 text-zinc-950'
+                    : 'border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                {mins}&apos;
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Environment Friction: Γραφείο vs Σπίτι/Παντόφλα vs Σπίτι/Αθλητικά vs Έξω */}
+        <div>
+          <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-300">
+            <Shirt className="h-4 w-4 text-emerald-400" />
+            <span>Πού βρίσκεσαι & τι φοράς τώρα;</span>
+          </label>
+          <div className="mt-2 space-y-1.5">
+            {(
+              [
+                'indoor_clothes',
+                'home_slippers',
+                'home_gear',
+                'outdoor',
+              ] as EnvironmentType[]
+            ).map((env) => (
+              <button
+                key={env}
+                type="button"
+                onClick={() => updateCheckInField('environment', env)}
+                className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-xs font-medium transition ${
+                  checkIn.environment === env
+                    ? 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+                    : 'border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <span>{ENVIRONMENT_LABELS_GREEK[env]}</span>
+                {checkIn.environment === env && (
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+                )}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Mood 1-5 */}
@@ -648,60 +610,6 @@ export default function TodayCommandCenter() {
           </div>
         </div>
 
-        {/* Time Window Micro-Windows */}
-        <div>
-          <label className="flex items-center justify-between text-xs font-medium text-zinc-300">
-            <span className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-emerald-400" />
-              Διαθέσιμο Παράθυρο Χρόνου
-            </span>
-            <span className="font-semibold text-emerald-400">{checkIn.timeWindowMins} λεπτά</span>
-          </label>
-          <div className="mt-2 grid grid-cols-7 gap-1">
-            {TIME_WINDOWS.map((mins) => (
-              <button
-                key={mins}
-                type="button"
-                onClick={() => updateCheckInField('timeWindowMins', mins)}
-                className={`rounded-xl py-2 text-xs font-semibold transition ${
-                  checkIn.timeWindowMins === mins
-                    ? 'bg-emerald-500 text-zinc-950'
-                    : 'border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                {mins}&apos;
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Environment Friction */}
-        <div>
-          <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-300">
-            <Shirt className="h-4 w-4 text-emerald-400" />
-            <span>Περιβάλλον & Τριβή Εξοπλισμού</span>
-          </label>
-          <div className="mt-2 space-y-1.5">
-            {(['indoor_clothes', 'home_gear', 'outdoor'] as EnvironmentType[]).map((env) => (
-              <button
-                key={env}
-                type="button"
-                onClick={() => updateCheckInField('environment', env)}
-                className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-xs font-medium transition ${
-                  checkIn.environment === env
-                    ? 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
-                    : 'border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                <span>{ENVIRONMENT_LABELS_GREEK[env]}</span>
-                {checkIn.environment === env && (
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Pain Level (Safety Gate Trigger at >= 4) */}
         <div className="border-t border-zinc-800 pt-2">
           <label className="flex items-center justify-between text-xs font-medium text-zinc-300">
@@ -740,6 +648,127 @@ export default function TodayCommandCenter() {
               className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:border-amber-500 focus:outline-none"
             />
           )}
+        </div>
+      </section>
+
+      {/* HOME & OFFICE WORKOUT ALTERNATIVES HUB */}
+      <section
+        aria-label="Εναλλακτικές Εκγύμνασης Σπιτιού & Γραφείου"
+        className="space-y-3.5 rounded-2xl border border-zinc-800/90 bg-zinc-900/90 p-5"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 text-emerald-400">
+              <Home className="h-4 w-4" />
+              <h3 className="text-sm font-bold text-zinc-100">
+                Εναλλακτικές Ασκήσεις (Γραφείο, Σπίτι με Παντόφλα & Γυμναστική)
+              </h3>
+            </div>
+            <p className="mt-1 text-xs text-zinc-400">
+              Σαφείς οδηγίες βήμα-βήμα ανάλογα με το αν είσαι στο γραφείο, στον καναπέ με παντόφλα ή
+              έτοιμος για γυμναστική στο σπίτι.
+            </p>
+          </div>
+          <Dumbbell className="h-5 w-5 shrink-0 text-zinc-500" />
+        </div>
+
+        {/* Category Filter Pills */}
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSelectedHomeCategory('all')}
+            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+              selectedHomeCategory === 'all'
+                ? 'bg-emerald-500 text-zinc-950'
+                : 'border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            Όλα ({HOME_WORKOUT_PROTOCOLS.length})
+          </button>
+          {(Object.keys(HOME_WORKOUT_CATEGORY_LABELS) as HomeWorkoutCategory[]).map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setSelectedHomeCategory(cat)}
+              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                selectedHomeCategory === cat
+                  ? 'bg-emerald-500 text-zinc-950'
+                  : 'border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              {HOME_WORKOUT_CATEGORY_LABELS[cat]}
+            </button>
+          ))}
+        </div>
+
+        {/* Protocol Cards List */}
+        <div className="space-y-2.5 pt-1">
+          {filteredHomeWorkouts.map((proto) => (
+            <div
+              key={proto.id}
+              className="rounded-xl border border-zinc-800 bg-zinc-950/90 p-3.5 transition hover:border-emerald-500/40"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span className="inline-block rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                    {proto.categoryLabelGreek} • {proto.equipmentGreek}
+                  </span>
+                  <h4 className="mt-1 text-xs font-bold text-zinc-100">{proto.titleGreek}</h4>
+                </div>
+                <span className="shrink-0 rounded-lg bg-zinc-900 px-2 py-1 text-xs font-bold text-emerald-400">
+                  {proto.durationMins}&apos;
+                </span>
+              </div>
+
+              <div className="mt-2 rounded-lg bg-emerald-500/5 p-2 text-[11px] leading-relaxed text-emerald-200/90">
+                <strong>Τι πετυχαίνουμε: </strong>
+                {proto.whatWeAchieveGreek}
+              </div>
+
+              <ul className="mt-2 space-y-1.5 border-t border-zinc-800/80 pt-2 text-[11px] text-zinc-200">
+                {proto.exercisesGreek.map((ex, i) => (
+                  <li key={i} className="flex items-start gap-1.5">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                    <span>{ex}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-zinc-900 pt-2.5">
+                <span className="text-[11px] font-medium text-zinc-400">
+                  +{proto.habitPointsAward} Συνέπεια • +{proto.structuralPointsAward} Δομική Ανοχή
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectHomeProtocol(proto)}
+                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-[11px] font-semibold text-zinc-200 hover:bg-zinc-800"
+                  >
+                    Επιλογή
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveTimer({
+                        title: proto.titleGreek,
+                        modality: proto.modality,
+                        durationMins: proto.durationMins,
+                        intensityLabel: proto.intensityLabel,
+                        habitPointsAward: proto.habitPointsAward,
+                        structuralPointsAward: proto.structuralPointsAward,
+                        wasNegotiated: 'bored_swap',
+                        exercisesGreek: proto.exercisesGreek,
+                      })
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-[11px] font-bold text-zinc-950"
+                  >
+                    <Play className="h-3 w-3 fill-current" />
+                    Έναρξη ({proto.durationMins}&apos;)
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
