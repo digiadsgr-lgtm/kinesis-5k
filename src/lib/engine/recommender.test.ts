@@ -5,6 +5,12 @@ import {
   calculateRecommendation,
 } from './recommender';
 import {
+  createSampleGreekLabPdfBlob,
+  extractTextFromPdfBuffer,
+  parseBiomarkersFromText,
+} from '@/lib/parser/pdfBiomarkerExtractor';
+import { HOME_WORKOUT_PROTOCOLS } from './homeWorkouts';
+import {
   BiomarkerProfile,
   CheckInInput,
   DailyBiometrics,
@@ -50,7 +56,7 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
 
       const rec = calculateRecommendation(
         painCheckIn,
-        4, // Stage 4 (5K stage)
+        4,
         healthyBiometrics,
         normalBiomarkers,
         []
@@ -85,7 +91,7 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       const elevatedRhrBiometrics: DailyBiometrics = {
         ...healthyBiometrics,
         baselineRhr: 56,
-        rhr: 64, // +8 bpm above baseline
+        rhr: 64,
       };
 
       const rec = calculateRecommendation(
@@ -124,10 +130,10 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
   describe('2. Movement Opportunity Score (MOS) & Threshold 40', () => {
     it('triggers Zero-Friction Protocol (2-5 mins) when MOS < 40', () => {
       const lowCheckIn: CheckInInput = {
-        mood: 1, // (1/5)*35 = 7
-        energy: 1, // (1/5)*25 = 5
-        timeWindowMins: 5, // (5/30)*20 = 3.33
-        environment: 'indoor_clothes', // ((100-75)/100)*20 = 5 => total ~20
+        mood: 1,
+        energy: 1,
+        timeWindowMins: 5,
+        environment: 'indoor_clothes',
         painLevel: 0,
         painLocation: '',
       };
@@ -227,6 +233,31 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       expect(updated.currentStage).toBe(1);
       expect(updated.habitConsistencyScore).toBe(52);
       expect(updated.runningReadiness).toBe(18);
+    });
+  });
+
+  describe('5. PDF Microbiological Biomarker Extractor & Home Workouts Catalog', () => {
+    it('extracts Greek & English blood biomarkers accurately from a generated PDF binary', async () => {
+      const blob = createSampleGreekLabPdfBlob();
+      const buffer = await blob.arrayBuffer();
+      const text = await extractTextFromPdfBuffer(buffer);
+      const parsed = parseBiomarkersFromText(text, 'Sample.pdf');
+
+      expect(parsed.updatedProfile.ferritin).toBe(21.5);
+      expect(parsed.updatedProfile.hemoglobin).toBe(13.4);
+      expect(parsed.updatedProfile.vitaminD).toBe(22.8);
+      expect(parsed.updatedProfile.vitaminB12).toBe(340);
+      expect(parsed.updatedProfile.crp).toBe(1.4);
+      expect(parsed.updatedProfile.fastingGlucose).toBe(94);
+      expect(parsed.extraFindingsGreek.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('provides 10 structured home conditioning protocols with step-by-step Greek exercises', () => {
+      expect(HOME_WORKOUT_PROTOCOLS.length).toBe(10);
+      for (const proto of HOME_WORKOUT_PROTOCOLS) {
+        expect(proto.exercisesGreek.length).toBeGreaterThan(0);
+        expect(proto.habitPointsAward).toBeGreaterThanOrEqual(14);
+      }
     });
   });
 });

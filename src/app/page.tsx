@@ -2,13 +2,14 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
   AlertTriangle,
   Battery,
   CheckCircle2,
   Clock,
-  Flame,
+  Dumbbell,
   Footprints,
+  Home,
+  ListChecks,
   Play,
   RefreshCw,
   ShieldAlert,
@@ -34,6 +35,12 @@ import {
 } from '@/types/kinesis';
 import { calculateRecommendation } from '@/lib/engine/recommender';
 import {
+  HOME_WORKOUT_CATEGORY_LABELS,
+  HOME_WORKOUT_PROTOCOLS,
+  HomeWorkoutCategory,
+  HomeWorkoutProtocol,
+} from '@/lib/engine/homeWorkouts';
+import {
   DEFAULT_BIOMARKERS,
   DEFAULT_BIOMETRICS,
   DEFAULT_CHECK_IN,
@@ -55,11 +62,19 @@ export default function TodayCommandCenter() {
   const [checkIn, setCheckIn] = useState<CheckInInput>(DEFAULT_CHECK_IN);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Negotiated override (when user taps "Σήμερα δυσκολεύομαι πολύ" or "Μπορώ, αλλά βαριέμαι")
+  // Negotiated override (when user taps "Σήμερα δυσκολεύομαι πολύ", "Μπορώ, αλλά βαριέμαι", or picks a Home Workout)
   const [overridePrescription, setOverridePrescription] = useState<{
-    prescription: AlternativePrescription;
+    prescription: AlternativePrescription & {
+      exercisesGreek?: string[];
+      equipmentGreek?: string;
+    };
     mode: 'bored_swap' | 'micro_step';
   } | null>(null);
+
+  const [boredCycleIndex, setBoredCycleIndex] = useState<number>(0);
+  const [selectedHomeCategory, setSelectedHomeCategory] = useState<HomeWorkoutCategory | 'all'>(
+    'all'
+  );
 
   const [activeTimer, setActiveTimer] = useState<ActiveTimerSession | null>(null);
   const [completionBanner, setCompletionBanner] = useState<string | null>(null);
@@ -109,6 +124,8 @@ export default function TodayCommandCenter() {
         reasoningGreek: overridePrescription.prescription.reasoningGreek,
         habitPointsAward: overridePrescription.prescription.habitPointsAward,
         structuralPointsAward: overridePrescription.prescription.structuralPointsAward,
+        exercisesGreek: overridePrescription.prescription.exercisesGreek,
+        equipmentGreek: overridePrescription.prescription.equipmentGreek,
         negotiatedMode: overridePrescription.mode,
       }
     : {
@@ -119,6 +136,8 @@ export default function TodayCommandCenter() {
         reasoningGreek: recommendation.reasoningGreek,
         habitPointsAward: recommendation.habitPointsAward,
         structuralPointsAward: recommendation.structuralPointsAward,
+        exercisesGreek: undefined,
+        equipmentGreek: undefined,
         negotiatedMode: 'primary' as const,
       };
 
@@ -132,6 +151,7 @@ export default function TodayCommandCenter() {
       habitPointsAward: displayedPrescription.habitPointsAward,
       structuralPointsAward: displayedPrescription.structuralPointsAward,
       wasNegotiated: displayedPrescription.negotiatedMode,
+      exercisesGreek: displayedPrescription.exercisesGreek,
     });
   };
 
@@ -146,10 +166,52 @@ export default function TodayCommandCenter() {
     );
     const updatedRejections = [event, ...rejections];
     setRejections(updatedRejections);
+
+    if (boredCycleIndex === 0) {
+      setOverridePrescription({
+        prescription: recommendation.boredAlternative,
+        mode: 'bored_swap',
+      });
+    } else {
+      const protocol =
+        HOME_WORKOUT_PROTOCOLS[(boredCycleIndex - 1) % HOME_WORKOUT_PROTOCOLS.length];
+      setOverridePrescription({
+        prescription: {
+          id: protocol.id,
+          title: protocol.titleGreek,
+          modality: protocol.modality,
+          durationMins: protocol.durationMins,
+          intensityLabel: protocol.intensityLabel,
+          reasoningGreek: `${protocol.reasoningGreek} (Εξοπλισμός: ${protocol.equipmentGreek})`,
+          habitPointsAward: protocol.habitPointsAward,
+          structuralPointsAward: protocol.structuralPointsAward,
+          exercisesGreek: protocol.exercisesGreek,
+          equipmentGreek: protocol.equipmentGreek,
+        },
+        mode: 'bored_swap',
+      });
+    }
+    setBoredCycleIndex((prev) => prev + 1);
+  };
+
+  const handleSelectHomeProtocol = (protocol: HomeWorkoutProtocol) => {
+    setCompletionBanner(null);
     setOverridePrescription({
-      prescription: recommendation.boredAlternative,
+      prescription: {
+        id: protocol.id,
+        title: protocol.titleGreek,
+        modality: protocol.modality,
+        durationMins: protocol.durationMins,
+        intensityLabel: protocol.intensityLabel,
+        reasoningGreek: `${protocol.reasoningGreek} (Εξοπλισμός: ${protocol.equipmentGreek})`,
+        habitPointsAward: protocol.habitPointsAward,
+        structuralPointsAward: protocol.structuralPointsAward,
+        exercisesGreek: protocol.exercisesGreek,
+        equipmentGreek: protocol.equipmentGreek,
+      },
       mode: 'bored_swap',
     });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleHardDowngrade = async () => {
@@ -193,6 +255,11 @@ export default function TodayCommandCenter() {
 
   const currentStageDef = STAGES[progression.currentStage];
 
+  const filteredHomeWorkouts = useMemo(() => {
+    if (selectedHomeCategory === 'all') return HOME_WORKOUT_PROTOCOLS;
+    return HOME_WORKOUT_PROTOCOLS.filter((p) => p.category === selectedHomeCategory);
+  }, [selectedHomeCategory]);
+
   return (
     <div className="space-y-5">
       {/* Top Status Header */}
@@ -211,9 +278,7 @@ export default function TodayCommandCenter() {
             <span className="text-[11px] uppercase tracking-wider text-zinc-400">MOS Σήμερα</span>
             <div
               className={`text-lg font-bold ${
-                recommendation.mosScore < 40
-                  ? 'text-amber-400'
-                  : 'text-emerald-400'
+                recommendation.mosScore < 40 ? 'text-amber-400' : 'text-emerald-400'
               }`}
             >
               {recommendation.mosScore}/100
@@ -222,7 +287,7 @@ export default function TodayCommandCenter() {
         </div>
 
         {/* Dual Metrics Compact Bar */}
-        <div className="mt-3.5 grid grid-cols-2 gap-3 pt-3 border-t border-zinc-800/80">
+        <div className="mt-3.5 grid grid-cols-2 gap-3 border-t border-zinc-800/80 pt-3">
           <div>
             <div className="flex justify-between text-xs">
               <span className="text-zinc-400">Συνέπεια Εκκίνησης</span>
@@ -303,7 +368,7 @@ export default function TodayCommandCenter() {
               <span className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
                 {overridePrescription.mode === 'micro_step'
                   ? 'Micro-Step Ενεργό'
-                  : 'Εναλλαγή Βαρεμάρας'}
+                  : 'Εναλλακτική Επιλογή'}
               </span>
             )}
             <span className="inline-flex items-center gap-1 rounded-lg bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-200">
@@ -331,6 +396,25 @@ export default function TodayCommandCenter() {
             {displayedPrescription.reasoningGreek}
           </p>
         </div>
+
+        {/* Step-by-step exercises if a Home Workout Protocol is active */}
+        {displayedPrescription.exercisesGreek &&
+          displayedPrescription.exercisesGreek.length > 0 && (
+            <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                <ListChecks className="h-4 w-4" />
+                <span>Δομή Ασκήσεων Πρωτοκόλλου:</span>
+              </div>
+              <ul className="mt-2 space-y-1 text-xs text-zinc-200">
+                {displayedPrescription.exercisesGreek.map((step, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
         {/* Points Reward Preview */}
         <div className="mt-3.5 flex items-center justify-between text-xs text-zinc-400">
@@ -378,10 +462,130 @@ export default function TodayCommandCenter() {
         </div>
       </section>
 
+      {/* HOME WORKOUT & PHYSICAL CONDITIONING ALTERNATIVES HUB */}
+      <section
+        aria-label="Εναλλακτικές Σωματικής Εκγύμνασης στο Σπίτι"
+        className="space-y-3.5 rounded-2xl border border-zinc-800/90 bg-zinc-900/90 p-5"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 text-emerald-400">
+              <Home className="h-4 w-4" />
+              <h3 className="text-sm font-bold text-zinc-100">
+                Εναλλακτικές Εκγύμνασης στο Σπίτι (10 Πρωτόκολλα)
+              </h3>
+            </div>
+            <p className="mt-1 text-xs text-zinc-400">
+              Πλήρης γκάμα ασκήσεων δύναμης, καλλισθενικής, θωράκισης τενόντων και αερόβιας ροής
+              χωρίς να βγεις από το σπίτι.
+            </p>
+          </div>
+          <Dumbbell className="h-5 w-5 shrink-0 text-zinc-500" />
+        </div>
+
+        {/* Category Filter Pills */}
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSelectedHomeCategory('all')}
+            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+              selectedHomeCategory === 'all'
+                ? 'bg-emerald-500 text-zinc-950'
+                : 'border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            Όλα ({HOME_WORKOUT_PROTOCOLS.length})
+          </button>
+          {(Object.keys(HOME_WORKOUT_CATEGORY_LABELS) as HomeWorkoutCategory[]).map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setSelectedHomeCategory(cat)}
+              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                selectedHomeCategory === cat
+                  ? 'bg-emerald-500 text-zinc-950'
+                  : 'border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              {HOME_WORKOUT_CATEGORY_LABELS[cat]}
+            </button>
+          ))}
+        </div>
+
+        {/* Protocol Cards List */}
+        <div className="space-y-2.5 pt-1">
+          {filteredHomeWorkouts.map((proto) => (
+            <div
+              key={proto.id}
+              className="rounded-xl border border-zinc-800 bg-zinc-950/90 p-3.5 transition hover:border-emerald-500/40"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span className="inline-block rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                    {proto.categoryLabelGreek} • {proto.equipmentGreek}
+                  </span>
+                  <h4 className="mt-1 text-xs font-bold text-zinc-100">{proto.titleGreek}</h4>
+                </div>
+                <span className="shrink-0 rounded-lg bg-zinc-900 px-2 py-1 text-xs font-bold text-emerald-400">
+                  {proto.durationMins}&apos;
+                </span>
+              </div>
+
+              <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-400">
+                {proto.reasoningGreek}
+              </p>
+
+              <ul className="mt-2 space-y-1 border-t border-zinc-800/80 pt-2 text-[11px] text-zinc-300">
+                {proto.exercisesGreek.map((ex, i) => (
+                  <li key={i} className="flex items-start gap-1.5">
+                    <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                    <span>{ex}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-zinc-900 pt-2.5">
+                <span className="text-[11px] font-medium text-zinc-400">
+                  +{proto.habitPointsAward} Συνέπεια • +{proto.structuralPointsAward} Δομική Ανοχή
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectHomeProtocol(proto)}
+                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-[11px] font-semibold text-zinc-200 hover:bg-zinc-800"
+                  >
+                    Επιλογή ως Κύρια
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveTimer({
+                        title: proto.titleGreek,
+                        modality: proto.modality,
+                        durationMins: proto.durationMins,
+                        intensityLabel: proto.intensityLabel,
+                        habitPointsAward: proto.habitPointsAward,
+                        structuralPointsAward: proto.structuralPointsAward,
+                        wasNegotiated: 'bored_swap',
+                        exercisesGreek: proto.exercisesGreek,
+                      })
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-[11px] font-bold text-zinc-950"
+                  >
+                    <Play className="h-3 w-3 fill-current" />
+                    Έναρξη
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* REAL-TIME CHECK-IN PANEL */}
       <section
         aria-label="Σημερινή Κατάσταση & Κόστος Εκκίνησης"
-        className="rounded-2xl border border-zinc-800/90 bg-zinc-900/90 p-5 space-y-4"
+        className="space-y-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/90 p-5"
       >
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-zinc-100">
@@ -499,7 +703,7 @@ export default function TodayCommandCenter() {
         </div>
 
         {/* Pain Level (Safety Gate Trigger at >= 4) */}
-        <div className="pt-2 border-t border-zinc-800">
+        <div className="border-t border-zinc-800 pt-2">
           <label className="flex items-center justify-between text-xs font-medium text-zinc-300">
             <span className="flex items-center gap-1.5">
               <AlertTriangle

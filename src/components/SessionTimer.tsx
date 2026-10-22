@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Play, Pause, CheckCircle2, X, RotateCcw, Sparkles } from 'lucide-react';
+import { Play, Pause, CheckCircle2, X, RotateCcw, Sparkles, ListChecks } from 'lucide-react';
 import { ModalityType, MODALITY_LABELS_GREEK } from '@/types/kinesis';
 
 export interface ActiveTimerSession {
@@ -12,6 +12,7 @@ export interface ActiveTimerSession {
   habitPointsAward: number;
   structuralPointsAward: number;
   wasNegotiated: 'primary' | 'bored_swap' | 'micro_step';
+  exercisesGreek?: string[];
 }
 
 interface SessionTimerProps {
@@ -71,7 +72,7 @@ export default function SessionTimer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-between bg-zinc-950/98 p-5 text-zinc-100 backdrop-blur-lg">
+    <div className="fixed inset-0 z-50 flex flex-col justify-between overflow-y-auto bg-zinc-950/98 p-5 text-zinc-100 backdrop-blur-lg">
       {/* Top Bar */}
       <div className="mx-auto flex w-full max-w-md items-center justify-between">
         <div>
@@ -92,31 +93,49 @@ export default function SessionTimer({
 
       {/* Main Content */}
       {!isFinishing ? (
-        <div className="mx-auto flex w-full max-w-md flex-col items-center text-center">
+        <div className="mx-auto my-auto flex w-full max-w-md flex-col items-center py-4 text-center">
           <p className="text-xs font-medium uppercase tracking-wider text-zinc-400">
             {session.intensityLabel}
           </p>
-          <h2 className="mt-2 text-lg font-semibold leading-snug text-zinc-100">
+          <h2 className="mt-1.5 text-lg font-semibold leading-snug text-zinc-100">
             {session.title}
           </h2>
 
           {/* Minimalist Countdown Circle */}
-          <div className="relative my-8 flex h-60 w-60 flex-col items-center justify-center rounded-full border-4 border-zinc-800 bg-zinc-900/70 shadow-2xl">
+          <div className="relative my-5 flex h-48 w-48 flex-col items-center justify-center rounded-full border-4 border-zinc-800 bg-zinc-900/70 shadow-2xl">
             <div
               className="absolute inset-0 rounded-full border-4 border-emerald-500/70 transition-all duration-500"
               style={{
                 clipPath: `inset(${100 - progressPercent}% 0 0 0)`,
               }}
             />
-            <span className="font-mono text-5xl font-bold tracking-tight text-zinc-50">
+            <span className="font-mono text-4xl font-bold tracking-tight text-zinc-50">
               {formatTime(secondsLeft)}
             </span>
-            <span className="mt-2 text-xs text-zinc-400">
+            <span className="mt-1.5 text-xs text-zinc-400">
               {isRunning ? 'Σε εξέλιξη • Χωρίς πίεση' : 'Σε παύση'}
             </span>
           </div>
 
-          <div className="flex w-full items-center justify-center gap-4">
+          {/* Step-by-Step Exercises Guide (when executing a Home Workout Protocol) */}
+          {session.exercisesGreek && session.exercisesGreek.length > 0 && (
+            <div className="mb-5 w-full rounded-2xl border border-zinc-800 bg-zinc-900/90 p-3.5 text-left">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                <ListChecks className="h-4 w-4" />
+                <span>Οδηγός Ασκήσεων Πρωτοκόλλου</span>
+              </div>
+              <ul className="mt-2 space-y-1.5 text-xs text-zinc-200">
+                {session.exercisesGreek.map((ex, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                    <span>{ex}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="flex w-full items-center justify-center gap-3">
             <button
               type="button"
               onClick={() => setSecondsLeft(totalSeconds)}
@@ -129,7 +148,7 @@ export default function SessionTimer({
             <button
               type="button"
               onClick={() => setIsRunning((prev) => !prev)}
-              className="flex h-16 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-6 font-semibold text-zinc-950 shadow-lg shadow-emerald-500/20 active:scale-98"
+              className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-6 font-semibold text-zinc-950 shadow-lg shadow-emerald-500/20 active:scale-98"
             >
               {isRunning ? (
                 <>
@@ -151,14 +170,14 @@ export default function SessionTimer({
               setIsRunning(false);
               setIsFinishing(true);
             }}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/90 py-3.5 text-sm font-medium text-emerald-400 hover:bg-zinc-900"
+            className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/90 py-3.5 text-sm font-medium text-emerald-400 hover:bg-zinc-900"
           >
             <CheckCircle2 className="h-4 w-4" />
             Ολοκλήρωση Κίνησης Τώρα (+{session.habitPointsAward} πόντοι συνέπειας)
           </button>
         </div>
       ) : (
-        <div className="mx-auto w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+        <div className="mx-auto my-auto w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
           <div className="flex items-center gap-2 text-emerald-400">
             <CheckCircle2 className="h-6 w-6" />
             <h3 className="text-lg font-bold">Το Επόμενο Βήμα Ολοκληρώθηκε</h3>
