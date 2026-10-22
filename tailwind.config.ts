@@ -11,12 +11,25 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: [
-          "Inter",
+          "var(--font-sans)",
+          "system-ui",
           "-apple-system",
           "BlinkMacSystemFont",
-          "Segoe UI",
+          "'Segoe UI'",
           "Roboto",
+          "'Noto Sans'",
+          "'Helvetica Neue'",
+          "Arial",
           "sans-serif",
+        ],
+        mono: [
+          "var(--font-mono)",
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "Monaco",
+          "Consolas",
+          "monospace",
         ],
       },
     },

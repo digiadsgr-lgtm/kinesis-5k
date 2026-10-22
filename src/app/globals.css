@@ -6,14 +6,22 @@
   color-scheme: dark;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-family: var(--font-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
 body {
   background-color: #09090b;
   color: #f4f4f5;
   -webkit-tap-highlight-color: transparent;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Custom range slider styling for mobile thumb reach */
+/* Custom range slider styling for mobile thumb reach (Chrome, Android & iOS Safari) */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
