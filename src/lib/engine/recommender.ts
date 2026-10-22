@@ -15,10 +15,10 @@ import {
 } from '@/types/kinesis';
 
 export const ENVIRONMENT_FRICTION_MAP: Record<EnvironmentType, number> = {
-  outdoor: 0, // 0% τριβή — ήδη έξω με αθλητικά
-  home_gear: 25, // 25% τριβή — σπίτι με αθλητικά παπούτσια / διάδρομο
-  home_slippers: 50, // 50% τριβή — σπίτι με παντόφλα / ρούχα σπιτιού
-  indoor_clothes: 75, // 75% τριβή — γραφείο / ρούχα γραφείου
+  outdoor: 0, // 0% τριβή — ήδη έξω
+  home_gear: 25, // 25% τριβή — σπίτι έτοιμος για γυμναστική
+  home_slippers: 50, // 50% τριβή — σπίτι με παντόφλα / κάλτσες
+  indoor_clothes: 75, // 75% τριβή — γραφείο / ρούχα δουλειάς
 };
 
 export interface RejectionHistoryItem {
@@ -76,40 +76,40 @@ function evaluateBiomarkerAlerts(biomarkers: BiomarkerProfile): {
 
   if (biomarkers.ferritin !== null && biomarkers.ferritin < 30) {
     alerts.push(
-      `Χαμηλή Φερριτίνη (${biomarkers.ferritin} ng/mL): Μειωμένη μεταφορά οξυγόνου στους μύες. Ο αλγόριθμος περιορίζει την υψηλή ένταση για να μην εξαντληθείς.`
+      `Χαμηλή Φερριτίνη (${biomarkers.ferritin} ng/mL): Το σώμα μεταφέρει λιγότερο οξυγόνο στους μύες. Κρατάμε την ένταση χαλαρή για να μην εξαντληθείς.`
     );
     dampenIntensity = true;
   }
 
   if (biomarkers.hemoglobin !== null && biomarkers.hemoglobin < 12.5) {
     alerts.push(
-      `Χαμηλή Αιμοσφαιρίνη (${biomarkers.hemoglobin} g/dL): Προστατευτικός κόφτης αερόβιας έντασης (έμφαση σε ήπιο ρυθμό Zone 1-2).`
+      `Χαμηλή Αιμοσφαιρίνη (${biomarkers.hemoglobin} g/dL): Προστατευτικός κόφτης έντασης (ήπιος ρυθμός Zone 1-2).`
     );
     dampenIntensity = true;
   }
 
   if (biomarkers.crp !== null && biomarkers.crp > 3.0) {
     alerts.push(
-      `Αυξημένη CRP (${biomarkers.crp} mg/L): Ένδειξη φλεγμονής. Αποφεύγονται οι κραδασμοί στους τένοντες σήμερα.`
+      `Αυξημένη CRP (${biomarkers.crp} mg/L): Ένδειξη φλεγμονής. Αποφεύγονται οι κραδασμοί σήμερα.`
     );
     dampenIntensity = true;
   }
 
   if (biomarkers.vitaminD !== null && biomarkers.vitaminD < 25) {
     alerts.push(
-      `Χαμηλή Βιταμίνη D (${biomarkers.vitaminD} ng/mL): Προσοχή στη βαθμιαία φόρτιση οστών και αρθρώσεων.`
+      `Χαμηλή Βιταμίνη D (${biomarkers.vitaminD} ng/mL): Προσοχή στην ομαλή ενδυνάμωση οστών και αρθρώσεων.`
     );
   }
 
   if (biomarkers.vitaminB12 !== null && biomarkers.vitaminB12 < 250) {
     alerts.push(
-      `Οριακή Βιταμίνη B12 (${biomarkers.vitaminB12} pg/mL): Ενδέχεται να αυξάνει την αίσθηση κόπωσης.`
+      `Οριακή Βιταμίνη B12 (${biomarkers.vitaminB12} pg/mL): Μπορεί να φέρνει πιο εύκολα αίσθηση κούρασης.`
     );
   }
 
   if (biomarkers.fastingGlucose !== null && biomarkers.fastingGlucose > 105) {
     alerts.push(
-      `Γλυκόζη Νηστείας (${biomarkers.fastingGlucose} mg/dL): Η σταθερή κίνηση μετά το φαγητό βοηθάει τους μύες να απορροφήσουν άμεσα το σάκχαρο.`
+      `Γλυκόζη Νηστείας (${biomarkers.fastingGlucose} mg/dL): Η ήπια κίνηση μετά το φαγητό βοηθάει τους μύες να ρίξουν άμεσα το σάκχαρο.`
     );
   }
 
@@ -130,8 +130,8 @@ interface PrescriptionBlueprint {
 }
 
 /**
- * Generates crystal-clear, environment-aware Greek instructions & goals
- * so the user ALWAYS knows 1) what we achieve and 2) what exact physical movements to do.
+ * Generates crystal-clear, 100% equipment-free Greek instructions & goals
+ * understandable by anyone from 5 to 105 years old.
  */
 function buildPrescriptionDetails(
   modality: ModalityType,
@@ -145,21 +145,21 @@ function buildPrescriptionDetails(
   const isHomeSlippers = environment === 'home_slippers';
 
   // -------------------------------------------------------------------------
-  // 1. MOBILITY / ΞΕΜΠΛΟΚΑΡΙΣΜΑ ΣΩΜΑΤΟΣ
+  // 1. MOBILITY / ΞΕΜΠΛΟΚΑΡΙΣΜΑ & ΕΥΛΥΓΙΣΙΑ (100% χωρίς εξοπλισμό)
   // -------------------------------------------------------------------------
   if (modality === 'mobility') {
     if (isOffice) {
       return {
-        title: `${durationMins}' Όρθιο Ξεμπλοκάρισμα Μέσης, Γοφών & Γάμπας (Δίπλα στο Γραφείο)`,
+        title: `${durationMins}' Όρθιο Ξεμπλοκάρισμα Μέσης, Γοφών & Ποδιών (Στο Γραφείο)`,
         intensityLabel: zeroFriction
-          ? 'Zero-Friction • Με Ρούχα Γραφείου (Χωρίς Ίδρωμα)'
+          ? 'Zero-Friction • Όρθιος με Ρούχα Δουλειάς'
           : 'Μηδενικός Κραδασμός • Όρθιες Κινήσεις Γραφείου',
         whatWeAchieveGreek:
-          'Όταν κάθεσαι ώρες, το μπροστινό μέρος των γοφών «μαζεύει» και τραβάει τη μέση, ενώ το αίμα λιμνάζει χαμηλά στα πόδια. Με 3 απλές όρθιες κινήσεις ανοίγουμε τους γοφούς και ενεργοποιούμε την κυκλοφορία χωρίς να τσαλακωθείς ή να ιδρώσεις.',
+          'Όταν καθόμαστε, το μπροστινό μέρος των γοφών «μαζεύει» και τραβάει τη μέση, ενώ το αίμα μένει χαμηλά στα πόδια. Με 3 πανεύκολες όρθιες κινήσεις ξεμπλοκάρουμε τη μέση και ανεβάζουμε το αίμα πίσω στην καρδιά χωρίς να ιδρώσουμε.',
         stepByStepGreek: [
-          '1. Άνοιγμα Γοφών (1 λεπτό): Σήκω όρθιος, κρατήσου από το γραφείο και κάνε ένα μεγάλο βήμα πίσω με το δεξί πόδι. Σπρώξε ελαφρά τη λεκάνη μπροστά μέχρι να νιώσεις ένα γλυκό τράβηγμα ψηλά στον δεξί γοφό. Μείνε 30" και άλλαξε πόδι (30").',
-          '2. Αντλία Γάμπας (30 δευτ.): Στάσου στα δύο πόδια και σήκω αργά στις μύτες των ποδιών 15 φορές. Αυτό σπρώχνει το αίμα πίσω στην καρδιά και ξυπνάει τον Αχίλλειο τένοντα.',
-          '3. Άνοιγμα Στήθους & Αυχένα (30 δευτ.): Πλέξε τα δάχτυλα πίσω από την πλάτη (ή πιάσε τις πίσω γωνίες της καρέκλας), τράβα τους ώμους πίσω-κάτω και πάρε 5 βαθιές ανάσες.',
+          'Βήμα 1 (Άνοιγμα Γοφών): Σήκω όρθιος και κάνε ένα μεγάλο βήμα πίσω με το δεξί πόδι. Λύγισε ελαφρά το μπροστινό γόνατο μέχρι να νιώσεις ένα γλυκό τέντωμα ψηλά στον δεξί γοφό. Μείνε 30 δευτερόλεπτα και άλλαξε πόδι.',
+          'Βήμα 2 (Ξύπνημα Γάμπας): Στάσου στα δύο πόδια και σήκω αργά στις μύτες των ποδιών 15 φορές.',
+          'Βήμα 3 (Άνοιγμα Στήθους & Ώμων): Άνοιξε τα χέρια διάπλατα στο πλάι, τράβα τους ώμους πίσω-κάτω και πάρε 5 βαθιές ανάσες.',
         ],
         habitPointsAward: 15,
         structuralPointsAward: Math.max(2, Math.round(durationMins * 0.35)),
@@ -168,18 +168,18 @@ function buildPrescriptionDetails(
 
     if (isHomeSlippers) {
       return {
-        title: `${durationMins}' Ξεμπλοκάρισμα Μέσης & Γοφών στο Σπίτι (Χωρίς Παπούτσια)`,
+        title: `${durationMins}' Ξεμούδιασμα Σώματος στο Σπίτι (Χωρίς Κανέναν Εξοπλισμό)`,
         intensityLabel: zeroFriction
-          ? 'Zero-Friction • Σπίτι με Παντόφλα / Χαλί'
-          : 'Αποκατάσταση • Μηδενικός Κραδασμός στο Σπίτι',
+          ? 'Zero-Friction • Σπίτι με Παντόφλα ή Κάλτσες'
+          : 'Απαλή Κίνηση στο Σπίτι • Μόνο το Σώμα σου',
         whatWeAchieveGreek:
-          'Ξεκλειδώνουμε τη μέση, τους γοφούς και τους αστραγάλους στον χώρο του σπιτιού σου (σε καναπέ, καρέκλα ή χαλί), ώστε το σώμα να είναι ελαστικό και έτοιμο για περπάτημα ή τρέξιμο χωρίς πόνους.',
+          'Διώχνουμε το πιάσιμο από τη μέση, τα γόνατα και τους ώμους όρθιοι μέσα στο δωμάτιο, χωρίς να χρειαστεί κανένα όργανο ή αθλητικά παπούτσια.',
         stepByStepGreek: [
-          '1. Τέντωμα Γοφού στον Καναπέ/Καρέκλα (1 λεπτό): Στάσου όρθιος, ακούμπησε το δεξί γόνατο πάνω στον καναπέ (το αριστερό πόδι πατάει κάτω) και σφίξε τον δεξί γλουτό για 30". Θα νιώσεις να ανοίγει όλο το μπροστινό μέρος του μηρού. Άλλαξε πλευρά για 30".',
-          '2. Ξεμπλοκάρισμα Αστραγάλου στον Τοίχο (1 λεπτό): Βάλε τα δάχτυλα του δεξιού ποδιού 10 εκ. από τον τοίχο. Λύγισε το γόνατο ώστε να ακουμπήσει τον τοίχο χωρίς να σηκωθεί η φτέρνα από το πάτωμα (10 αργές επαναλήψεις σε κάθε πόδι).',
+          'Βήμα 1 (Περπάτημα στη Θέση): Περπάτα επιτόπου για 1 λεπτό σηκώνοντας χαλαρά τα γόνατα και κουνώντας τα χέρια.',
+          'Βήμα 2 (Άνοιγμα Γοφών & Μέσης): Κάνε ένα μεγάλο βήμα πίσω με το δεξί πόδι και σήκωσε τα χέρια ψηλά παίρνοντας βαθιά ανάσα για 30 δευτερόλεπτα. Κάνε το ίδιο με το αριστερό πόδι.',
           ...(durationMins > 2
             ? [
-                '3. Καθίσματα Καναπέ (1-2 λεπτά): Κάθισε και σήκω αργά από τον καναπέ ή την καρέκλα 12 φορές χωρίς να βάλεις χέρια, πιέζοντας τις φτέρνες στο πάτωμα.',
+                'Βήμα 3 (Ήπια Καθίσματα στον Αέρα): Με τα πόδια στο άνοιγμα των ώμων, λύγισε λίγο τα γόνατα (σαν να ξεκινάς να κάτσεις) και ξανασήκω όρθιος 10 φορές αργά.',
               ]
             : []),
         ],
@@ -189,14 +189,14 @@ function buildPrescriptionDetails(
     }
 
     return {
-      title: `${durationMins}' Ενεργοποίηση Αρθρώσεων, Αστραγάλων & Γοφών`,
-      intensityLabel: 'Αποκατάσταση & Ευλυγισία • Μηδενικός Κραδασμός',
+      title: `${durationMins}' Ξεμπλοκάρισμα Αρθρώσεων, Μέσης & Αστραγάλων (Στο Σπίτι)`,
+      intensityLabel: 'Ευλυγισία & Αποκατάσταση • Κανένας Εξοπλισμός',
       whatWeAchieveGreek:
-        'Λιπαίνουμε τις αρθρώσεις (γοφούς, γόνατα, αστραγάλους) και αυξάνουμε την αιμάτωση στους τένοντες χωρίς καμία καταπόνηση.',
+        'Ζεσταίνουμε τις αρθρώσεις (γοφούς, γόνατα, αστραγάλους) μόνο με το σώμα μας, ώστε οι κινήσεις μας να είναι ανάλαφρες και χωρίς πόνους.',
       stepByStepGreek: [
-        '1. Αιωρήσεις Ποδιών (1 λεπτό): Κρατήσου από έναν τοίχο και κούνησε το δεξί πόδι χαλαρά μπρος-πίσω 15 φορές σαν εκκρεμές. Επανάλαβε με το αριστερό.',
-        '2. Λύγισμα Αστραγάλων (1 λεπτό): Κάνε 10 αργά λυγίσματα γονάτων προς τα εμπρός κρατώντας τις φτέρνες κολλημένες κάτω.',
-        '3. Βαθιά Προβολή & Στροφή Κορμού (υπόλοιπος χρόνος): Κάνε ένα μεγάλο βήμα μπροστά, χαμήλωσε τη λεκάνη και στρίψε ήπια τον κορμό δεξιά-αριστερά.',
+        'Βήμα 1 (Κύκλοι Αστραγάλων & Γοφών): Σήκωσε ελαφρά το δεξί πόδι και κάνε 10 κύκλους με το πέλμα. Επανάλαβε με το αριστερό.',
+        'Βήμα 2 (Μεγάλο Βήμα & Τέντωμα): Κάνε ένα μεγάλο βήμα μπροστά, λύγισε το μπροστινό γόνατο και άνοιξε τα χέρια στο πλάι. Επανάλαβε 8 φορές εναλλάξ.',
+        'Βήμα 3 (Στροφές Κορμού): Με τα πόδια ανοιχτά, στρίψε απαλά τον κορμό και τα χέρια δεξιά-αριστερά 12 φορές.',
       ],
       habitPointsAward: 14,
       structuralPointsAward: Math.max(2, Math.round(durationMins * 0.4)),
@@ -204,21 +204,21 @@ function buildPrescriptionDetails(
   }
 
   // -------------------------------------------------------------------------
-  // 2. STRENGTH / ΕΝΔΥΝΑΜΩΣΗ ΠΟΔΙΩΝ & ΚΟΡΜΟΥ
+  // 2. STRENGTH / ΕΝΔΥΝΑΜΩΣΗ ΠΟΔΙΩΝ & ΚΟΡΜΟΥ (100% χωρίς εξοπλισμό)
   // -------------------------------------------------------------------------
   if (modality === 'strength') {
     if (isOffice) {
       return {
-        title: `${durationMins}' Διακριτική Ενδυνάμωση Γάμπας & Ποδιών (Όρθιος στο Γραφείο)`,
-        intensityLabel: 'Δομική Θωράκιση • Με Ρούχα Γραφείου',
+        title: `${durationMins}' Όρθιο Δυνάμωμα Γάμπας & Ποδιών (Στο Γραφείο)`,
+        intensityLabel: 'Δυνάμωμα Ποδιών • Με Ρούχα Γραφείου',
         whatWeAchieveGreek:
-          'Δυναμώνουμε τις γάμπες, τον Αχίλλειο τένοντα και τους μηρούς όρθιοι δίπλα στο γραφείο, ώστε τα πόδια να αντέχουν τους κραδασμούς του τρεξίματος χωρίς τραυματισμούς.',
+          'Δυναμώνουμε τις γάμπες και τους μηρούς όρθιοι, χωρίς κανέναν εξοπλισμό, ώστε τα γόνατα και οι αστράγαλοι να γίνουν δυνατοί.',
         stepByStepGreek: [
-          '1. Αργές Άρσεις στις Μύτες (1 λεπτό): Στάσου όρθιος πίσω από την καρέκλα. Ανέβα στις μύτες των ποδιών σε 2 δευτερόλεπτα, μείνε πάνω 2 δευτερόλεπτα και κατέβα αργά σε 3 δευτερόλεπτα (12-15 επαναλήψεις).',
-          '2. Κάθισμα & Έγερση από Καρέκλα (1 λεπτό): Κάθισε στην καρέκλα και σήκω όρθιος 10 φορές χωρίς να χρησιμοποιήσεις τα χέρια σου, σφίγγοντας τους γλουτούς όταν σηκώνεσαι.',
+          'Βήμα 1 (Αργό Ανέβασμα στις Μύτες): Στάσου όρθιος, ανέβα στις μύτες των ποδιών σε 2 δευτερόλεπτα, μείνε πάνω 2 δευτερόλεπτα και κατέβα αργά (15 φορές).',
+          'Βήμα 2 (Μικρά Ημικαθίσματα): Λύγισε λίγο τα γόνατα (με ίσια πλάτη) και σήκω όρθιος σφίγγοντας τους γλουτούς 12 φορές.',
           ...(durationMins > 2
             ? [
-                '3. Ισορροπία στο Ένα Πόδι (υπόλοιπος χρόνος): Στάσου μόνο στο δεξί πόδι (με το γόνατο ελάχιστα λυγισμένο) για 30 δευτερόλεπτα. Άλλαξε στο αριστερό. Δυναμώνει όλους τους σταθεροποιητές του αστραγάλου.',
+                'Βήμα 3 (Ισορροπία στο Ένα Πόδι): Στάσου στο δεξί πόδι για 30 δευτερόλεπτα και μετά στο αριστερό για 30 δευτερόλεπτα.',
               ]
             : []),
         ],
@@ -227,38 +227,22 @@ function buildPrescriptionDetails(
       };
     }
 
-    if (isHomeSlippers) {
-      return {
-        title: `${durationMins}' Ενδυνάμωση Ποδιών, Γλουτών & Μέσης στο Σπίτι (Καρέκλα/Χαλί)`,
-        intensityLabel: 'Δομική Ανοχή Σπιτιού • Χωρίς Αθλητικά Παπούτσια',
-        whatWeAchieveGreek:
-          'Χτίζουμε δυνατούς γλουτούς, τετρακεφάλους και γάμπες μέσα στο σπίτι. Όσο πιο δυνατοί είναι αυτοί οι μύες, τόσο λιγότερο ζορίζονται τα γόνατα και η μέση όταν περπατάς ή τρέχεις.',
-        stepByStepGreek: [
-          '1. Καθίσματα στον Καναπέ/Καρέκλα (Sit-to-Stand): 12 επαναλήψεις — κατεβαίνεις αργά μέχρι να ακουμπήσεις τον καναπέ και σηκώνεσαι δυναμικά χωρίς χέρια.',
-          '2. Στήριξη στον Τοίχο (Wall Sit): Ακούμπησε την πλάτη στον τοίχο και κατέβα λίγο σαν να κάθεσαι σε αόρατη καρέκλα (στις 60 μοίρες, όχι πολύ βαθιά). Μείνε εκεί 30 δευτερόλεπτα. Θωρακίζει τα γόνατα.',
-          ...(durationMins > 2
-            ? [
-                '3. Γέφυρες Γλουτών στο Χαλί/Καναπέ: Ξάπλωσε ανάσκελα με λυγισμένα γόνατα. Σήκωσε τη λεκάνη ψηλά σφίγγοντας τους γλουτούς, μείνε 2 δευτερόλεπτα και κατέβα (12 επαναλήψεις).',
-                '4. Αργές Άρσεις Γάμπας: Κρατήσου από τον τοίχο και ανέβα-κατέβα στις μύτες των ποδιών 15 φορές.',
-              ]
-            : []),
-        ],
-        habitPointsAward: 15,
-        structuralPointsAward: Math.max(3, Math.round(durationMins * 0.7)),
-      };
-    }
-
     return {
-      title: `${durationMins}' Θωράκιση Αχιλλείου, Γονάτων & Κορμού στο Σπίτι`,
-      intensityLabel: 'Δομική Ανοχή • Προστασία Αρθρώσεων Δρομέα',
+      title: `${durationMins}' Δυνάμωμα Ποδιών, Γονάτων & Μέσης στο Σπίτι (Χωρίς Όργανα)`,
+      intensityLabel: 'Δύναμη Σπιτιού • Μόνο το Σώμα σου',
       whatWeAchieveGreek:
-        'Προετοιμάζουμε τους τένοντες (Αχίλλειο και επιγονατιδικό) και τον κορμό να απορροφούν με ασφάλεια το βάρος του σώματος σε κάθε βήμα.',
+        'Χτίζουμε δυνατούς μηρούς, γλουτούς και γάμπες χωρίς κανένα όργανο. Όσο πιο δυνατά είναι τα πόδια, τόσο πιο ξεκούραστα περπατάς και τρέχεις.',
       stepByStepGreek: [
-        '1. Εκκεντρικές Άρσεις Γάμπας (3 σετ x 12): Ανέβα στις μύτες με τα δύο πόδια σε 2" και κατέβα πολύ αργά (σε 4") νιώθοντας τη γάμπα να δουλεύει.',
-        '2. Προβολές Πίσω (Reverse Lunges - 3 σετ x 8 ανά πόδι): Κάνε ένα βήμα πίσω, λύγισε και τα δύο γόνατα ελεγχόμενα και επίστρεψε στην αρχική θέση.',
-        '3. Σανίδα Κορμού (2-3 σετ x 30"): Στηρίξου στους πήχεις (ή σε καναπέ) κρατώντας το σώμα σε ευθεία γραμμή και την κοιλιά σφιχτή.',
+        'Βήμα 1 (Καθίσματα στον Αέρα): Με τα πόδια στο άνοιγμα των ώμων, κατέβα αργά σαν να κάθεσαι και σήκω όρθιος (12 επαναλήψεις).',
+        'Βήμα 2 (Κράτημα Ημικαθίσματος): Λύγισε λίγο τα γόνατα και μείνε ακίνητος εκεί για 20 δευτερόλεπτα. Δυναμώνει άμεσα τα γόνατα.',
+        ...(durationMins > 2
+          ? [
+              'Βήμα 3 (Βήμα Πίσω): Κάνε ένα βήμα πίσω με το δεξί πόδι, λύγισε ελαφρά τα γόνατα και ξαναέλα μπροστά. Κάνε το ίδιο με το αριστερό (10 φορές συνολικά).',
+              'Βήμα 4 (Αργές Άρσεις στις Μύτες): Ανέβα στις μύτες των ποδιών και κατέβα αργά 15 φορές.',
+            ]
+          : []),
       ],
-      habitPointsAward: 14,
+      habitPointsAward: 15,
       structuralPointsAward: Math.max(3, Math.round(durationMins * 0.7)),
     };
   }
@@ -269,16 +253,16 @@ function buildPrescriptionDetails(
   if (modality === 'walk') {
     if (isOffice) {
       return {
-        title: `${durationMins}' Σβέλτο Περπάτημα στον Διάδρομο Γραφείου ή γύρω από το Κτίριο`,
+        title: `${durationMins}' Σβέλτο Περπάτημα στον Χώρο Γραφείου ή στο Τετράγωνο`,
         intensityLabel: zeroFriction
           ? 'Zero-Friction • Με Ρούχα Γραφείου'
           : 'Zone 1-2 • Αφύπνιση Κυκλοφορίας',
         whatWeAchieveGreek:
-          'Ξεκολλάμε το σώμα από την καρέκλα, ρίχνουμε το σάκχαρο στο αίμα και καθαρίζουμε το μυαλό μέσα σε λίγα λεπτά χωρίς να χρειαστείς αθλητικά ρούχα.',
+          'Ξεκολλάμε το σώμα από την καρέκλα, ρίχνουμε το σάκχαρο στο αίμα και καθαρίζουμε το μυαλό μέσα σε λίγα λεπτά.',
         stepByStepGreek: [
-          `1. Σήκω από την καρέκλα τώρα και περπάτησε συνεχόμενα για ${durationMins} λεπτά (στον διάδρομο του κτιρίου, στην αυλή ή στο τετράγωνο).`,
-          '2. Κράτα τους ώμους χαλαρούς (μακριά από τα αυτιά) και το βλέμμα μπροστά, όχι στο κινητό.',
-          '3. Ο ρυθμός σου πρέπει να είναι σβέλτος αλλά άνετος, ώστε να μην ιδρώσεις.',
+          `Βήμα 1: Σήκω από την καρέκλα τώρα και περπάτησε συνεχόμενα για ${durationMins} λεπτά.`,
+          'Βήμα 2: Κράτα τους ώμους χαλαρούς και το βλέμμα μπροστά, όχι στο κινητό.',
+          'Βήμα 3: Ο ρυθμός σου πρέπει να είναι σβέλτος αλλά άνετος, ώστε να μην ιδρώσεις.',
         ],
         habitPointsAward: 15,
         structuralPointsAward: Math.max(2, Math.round(durationMins * 0.45)),
@@ -287,14 +271,14 @@ function buildPrescriptionDetails(
 
     if (isHomeSlippers) {
       return {
-        title: `${durationMins}' Ρυθμικό Βήμα στη Θέση & Κίνηση μέσα στο Σπίτι`,
-        intensityLabel: 'Zone 1-2 • Ενεργοποίηση στο Σπίτι',
+        title: `${durationMins}' Ρυθμικό Περπάτημα στη Θέση μέσα στο Σπίτι`,
+        intensityLabel: 'Zone 1-2 • Κίνηση στο Σπίτι Χωρίς Εξοπλισμό',
         whatWeAchieveGreek:
-          'Ανεβάζουμε ήπια τους παλμούς και ενεργοποιούμε τα πόδια μέσα στο σπίτι, χωρίς να χρειαστεί να ντυθείς ή να βγεις έξω.',
+          'Ανεβάζουμε ήπια τους παλμούς και ζεσταίνουμε τα πόδια μέσα στο δωμάτιο, χωρίς να χρειαστεί να ντυθείς ή να βγεις έξω.',
         stepByStepGreek: [
-          '1. Περπάτησε ρυθμικά μέσα στο σπίτι ή κάνε ρυθμικό βήμα στη θέση (Marching) σηκώνοντας ελαφρά τα γόνατα.',
-          '2. Κούνα παράλληλα τα χέρια μπρος-πίσω (όπως όταν περπατάς γρήγορα στον δρόμο) για να ανέβει η κυκλοφορία του αίματος.',
-          '3. Κάθε 1 λεπτό, κάνε 5 αργά καθίσματα στον καναπέ/καρέκλα και συνέχισε το ρυθμικό βήμα.',
+          'Βήμα 1: Περπάτησε ρυθμικά στη θέση σηκώνοντας χαλαρά τα γόνατα.',
+          'Βήμα 2: Κούνα παράλληλα τα χέρια μπρος-πίσω για να ανέβει η κυκλοφορία σε όλο το σώμα.',
+          'Βήμα 3: Κάθε 1 λεπτό, κάνε 5 μικρά καθίσματα και συνέχισε το ρυθμικό βήμα.',
         ],
         habitPointsAward: 15,
         structuralPointsAward: Math.max(2, Math.round(durationMins * 0.45)),
@@ -309,11 +293,11 @@ function buildPrescriptionDetails(
         ? 'Zone 1 • Ελεγχόμενη Ένταση Ασφαλείας'
         : 'Zone 2 • Χτίσιμο Αερόβιας Αντοχής',
       whatWeAchieveGreek:
-        'Χτίζουμε την αερόβια βάση (τα «εργοστάσια ενέργειας» των μυών) και συνηθίζουμε τα πέλματα και τους τένοντες στη συνεχή κίνηση χωρίς κραδασμούς.',
+        'Δυναμώνουμε την καρδιά και τους πνεύμονες και συνηθίζουμε τα πόδια στη συνεχή κίνηση χωρίς κραδασμούς.',
       stepByStepGreek: [
-        `1. Περπάτησε με ζωηρό, σταθερό ρυθμό για ${durationMins} λεπτά.`,
-        '2. Κανόνας Αναπνοής: Ο ρυθμός πρέπει να είναι τέτοιος ώστε να μπορείς να μιλάς άνετα σε ολόκληρες προτάσεις χωρίς να λαχανιάζεις.',
-        '3. Πάτα μαλακά από τη φτέρνα προς τα δάχτυλα και δώσε ώθηση με τα χέρια λυγισμένα στις 90 μοίρες.',
+        `Βήμα 1: Περπάτησε με ζωηρό, σταθερό ρυθμό για ${durationMins} λεπτά.`,
+        'Βήμα 2 (Κανόνας Αναπνοής): Πήγαινε με ρυθμό τέτοιο ώστε να μπορείς να μιλάς άνετα χωρίς να λαχανιάζεις.',
+        'Βήμα 3: Πάτα μαλακά από τη φτέρνα προς τα δάχτυλα κουνώντας ρυθμικά τα χέρια.',
       ],
       habitPointsAward: 14,
       structuralPointsAward: Math.max(2, Math.round(durationMins * 0.5)),
@@ -325,16 +309,16 @@ function buildPrescriptionDetails(
   // -------------------------------------------------------------------------
   if (modality === 'stairs') {
     return {
-      title: `${durationMins}' Ελεγχόμενη Ανάβαση Σκάλας (Χωρίς Κραδασμό Προσγείωσης)`,
+      title: `${durationMins}' Ήρεμη Ανάβαση Σκάλας`,
       intensityLabel: zone1Cap
         ? 'Zone 1 • Αργός Ρυθμός Σκάλας'
         : 'Zone 2 • Δύναμη Ποδιών & Καρδιάς',
       whatWeAchieveGreek:
-        'Η ανάβαση σκάλας δυναμώνει εντυπωσιακά τους τετρακεφάλους, τους γλουτούς και την καρδιά σε ελάχιστο χρόνο, χωρίς τον κραδασμό που έχει το τρέξιμο στον δρόμο.',
+        'Η σκάλα δυναμώνει τους μηρούς, τους γλουτούς και την καρδιά σε ελάχιστο χρόνο, χωρίς τον κραδασμό του τρεξίματος.',
       stepByStepGreek: [
-        '1. Ανέβα τα σκαλιά με σταθερό, ήρεμο ρυθμό πατώντας με ΟΛΟ το πέλμα στο σκαλοπάτι (όχι μόνο με τις μύτες).',
-        '2. Στο κατέβασμα, κατέβα πολύ χαλαρά και αργά (ή πάρε το ασανσέρ αν είσαι σε πολυώροφο κτίριο) για να μην ζορίσεις τα γόνατα.',
-        `3. Συνέχισε τις εναλλαγές ανάβασης-κατάβασης για ${durationMins} λεπτά συνολικά.`,
+        'Βήμα 1: Ανέβα τα σκαλιά με ήρεμο, σταθερό ρυθμό πατώντας με ΟΛΟ το πέλμα στο σκαλοπάτι.',
+        'Βήμα 2: Κατέβα πολύ αργά και χαλαρά για να ξεκουράζονται τα γόνατα.',
+        `Βήμα 3: Συνέχισε για ${durationMins} λεπτά συνολικά.`,
       ],
       habitPointsAward: 15,
       structuralPointsAward: Math.max(3, Math.round(durationMins * 0.65)),
@@ -346,16 +330,15 @@ function buildPrescriptionDetails(
   // -------------------------------------------------------------------------
   if (modality === 'treadmill') {
     return {
-      title: `${durationMins}' Διάδρομος με Ελαφριά Κλίση 1% - 1.5%`,
-      intensityLabel: zone1Cap ? 'Zone 1 • Ήπια Ροή σε Διάδρομο' : 'Zone 2 • Ελεγχόμενος Ρυθμός',
+      title: `${durationMins}' Ζωηρό Περπάτημα ή Χαλαρό Τζόκινγκ`,
+      intensityLabel: zone1Cap ? 'Zone 1 • Ήπια Ροή' : 'Zone 2 • Σταθερός Ρυθμός',
       whatWeAchieveGreek:
-        'Η ελαφριά κλίση 1.5% στον διάδρομο προστατεύει τα γόνατα μειώνοντας τον κραδασμό προσγείωσης, ενώ γυμνάζει την καρδιά σε απόλυτα ελεγχόμενο περιβάλλον.',
+        'Γυμνάζουμε την καρδιά σε απόλυτα ελεγχόμενο, σταθερό ρυθμό προστατεύοντας τις αρθρώσεις.',
       stepByStepGreek: [
-        '1. Ρύθμισε την κλίση του διαδρόμου στο 1.0% ή 1.5%.',
-        `2. Ξεκίνα τα πρώτα ${Math.min(2, durationMins)} λεπτά με άνετο περπάτημα (π.χ. 4.5 - 5.2 km/h).`,
+        `Βήμα 1: Ξεκίνα τα πρώτα ${Math.min(2, durationMins)} λεπτά με χαλαρό περπάτημα.`,
         stage >= 2 && !zone1Cap
-          ? '3. Στο κύριο μέρος, εναλλάσσεις 1 λεπτό πολύ χαλαρό τρέξιμο (7.0 - 8.0 km/h) με 2 λεπτά περπάτημα.'
-          : '3. Διατήρησε ζωηρό περπάτημα (5.2 - 6.0 km/h) αναπνέοντας ήρεμα από τη μύτη.',
+          ? 'Βήμα 2: Εναλλάσσεις 1 λεπτό πολύ χαλαρό τρέξιμο με 2 λεπτά άνετο περπάτημα.'
+          : 'Βήμα 2: Διατήρησε ζωηρό περπάτημα αναπνέοντας ήρεμα από τη μύτη.',
       ],
       habitPointsAward: 14,
       structuralPointsAward: Math.max(3, Math.round(durationMins * 0.6)),
@@ -371,14 +354,14 @@ function buildPrescriptionDetails(
         ? '1 λεπτό πολύ χαλαρό τρέξιμο / 2 λεπτά περπάτημα'
         : '3 λεπτά χαλαρό τρέξιμο / 1 λεπτό περπάτημα';
     return {
-      title: `${durationMins}' Εναλλαγές Περπάτημα-Τρέξιμο (${ratioText})`,
-      intensityLabel: 'Zone 2 • Προοδευτική Προσαρμογή Τενόντων',
+      title: `${durationMins}' Εναλλαγές Περπάτημα & Χαλαρό Τρέξιμο`,
+      intensityLabel: 'Zone 2 • Ομαλή Προσαρμογή Ποδιών',
       whatWeAchieveGreek:
-        'Δίνουμε στους τένοντες και στα οστά το ερέθισμα του τρεξίματος σε μικρές, ασφαλείς δόσεις. Τα διαλείμματα περπατήματος μηδενίζουν την κόπωση πριν προλάβει να συσσωρευτεί.',
+        'Συνηθίζουμε το σώμα στο τρέξιμο σε μικρές, ξεκούραστες δόσεις. Τα διαλείμματα περπατήματος κρατούν τους παλμούς χαμηλά.',
       stepByStepGreek: [
-        '1. Ξεκίνα με 3 λεπτά ζωηρό περπάτημα για να ζεσταθούν οι αστράγαλοι και τα γόνατα.',
-        `2. Κύριο Μέρος: Επανάλαβε τον κύκλο «${ratioText}» μέχρι να συμπληρωθεί ο χρόνος.`,
-        '3. Σημαντικό: Στο τρέξιμο πήγαινε ΠΙΟ ΑΡΓΑ από όσο νομίζεις (ρυθμός συζήτησης, μικρά και ανάλαφρα βήματα).',
+        'Βήμα 1: Ξεκίνα με 3 λεπτά ζωηρό περπάτημα για ζέσταμα.',
+        `Βήμα 2: Επανάλαβε τον κύκλο «${ratioText}» μέχρι να τελειώσει ο χρόνος.`,
+        'Βήμα 3: Στο τρέξιμο πήγαινε πολύ αργά και ανάλαφρα, ώστε να μπορείς να μιλάς άνετα.',
       ],
       habitPointsAward: 15,
       structuralPointsAward: Math.max(4, Math.round(durationMins * 0.85)),
@@ -391,13 +374,13 @@ function buildPrescriptionDetails(
   return {
     title: `${durationMins}' Συνεχόμενο Άνετο Τρέξιμο (Ρυθμός Συζήτησης)`,
     intensityLabel:
-      stage === 5 ? 'Zone 2-3 • Αγωνιστική Οικονομία 5K' : 'Zone 2 • Αερόβια Δρομική Ροή',
+      stage === 5 ? 'Zone 2-3 • Αγωνιστική Ετοιμότητα 5K' : 'Zone 2 • Ξεκούραστη Δρομική Ροή',
     whatWeAchieveGreek:
-      'Μαθαίνουμε το σώμα να καίει λίπος ως καύσιμο και να τρέχει οικονομικά με χαμηλούς παλμούς, χτίζοντας την αντοχή για τα 5 συνεχόμενα χιλιόμετρα.',
+      'Μαθαίνουμε το σώμα να τρέχει οικονομικά με χαμηλούς παλμούς, χτίζοντας την αντοχή για τα 5 συνεχόμενα χιλιόμετρα.',
     stepByStepGreek: [
-      '1. Τα πρώτα 3 λεπτά ξεκίνα με πολύ αργό τζόκινγκ ώστε να ανέβουν ομαλά οι παλμοί.',
-      '2. Βρες έναν σταθερό, άνετο ρυθμό όπου μπορείς να μιλάς χωρίς να κόβεται η ανάσα σου.',
-      '3. Κράτα το σώμα ψηλό, τους ώμους χαλαρούς και προσγειώσου μαλακά κάτω από το κέντρο βάρους σου (όχι με τεντωμένο πόδι μπροστά).',
+      'Βήμα 1: Τα πρώτα 3 λεπτά ξεκίνα με πολύ αργό τζόκινγκ.',
+      'Βήμα 2: Βρες έναν σταθερό, άνετο ρυθμό όπου μπορείς να μιλάς χωρίς να λαχανιάζεις.',
+      'Βήμα 3: Κράτα τους ώμους χαλαρούς και κάνε μικρά, μαλακά βήματα.',
     ],
     habitPointsAward: 15,
     structuralPointsAward: Math.max(5, Math.round(durationMins * 1.0)),
@@ -434,7 +417,7 @@ export function calculateRecommendation(
       ? ` στην περιοχή «${checkIn.painLocation.trim()}»`
       : '';
     safetyAlertsGreek.unshift(
-      `Safety Gate Ενεργό: Καταγράφηκε πόνος ${checkIn.painLevel}/10${locationText}. Οι κραδασμοί κλειδώθηκαν στο μηδέν για προστασία των ιστών.`
+      `Safety Gate Ενεργό: Καταγράφηκε πόνος ${checkIn.painLevel}/10${locationText}. Οι κραδασμοί κλειδώθηκαν στο μηδέν για προστασία του σώματος.`
     );
 
     const safeDuration = Math.min(requestedMins, 15);
@@ -459,11 +442,11 @@ export function calculateRecommendation(
 
     return {
       id: `rec-safety-pain-${stage}-${safeDuration}`,
-      title: `${safeDuration}' Ήπιο Ξεμπλοκάρισμα Χωρίς Κραδασμούς (Προστασία Πόνου)`,
+      title: `${safeDuration}' Απαλό Ξεμπλοκάρισμα Χωρίς Κραδασμούς (Προστασία Πόνου)`,
       modality: 'mobility',
       durationMins: safeDuration,
       intensityLabel: 'Safety Gate • Μηδενικός Κραδασμός',
-      reasoningGreek: `Επειδή ανέφερες πόνο (${checkIn.painLevel}/10${locationText}), το Σύστημα Ασφαλείας κλειδώνει τους κραδασμούς στο μηδέν. Κάνουμε μόνο ήπια κίνηση ${safeDuration} λεπτών μακριά από το σημείο ενόχλησης.`,
+      reasoningGreek: `Επειδή ανέφερες πόνο (${checkIn.painLevel}/10${locationText}), το Σύστημα Ασφαλείας κλειδώνει τους κραδασμούς στο μηδέν. Κάνουμε μόνο απαλή κίνηση ${safeDuration} λεπτών χωρίς καμία επιβάρυνση.`,
       whatWeAchieveGreek: painBlueprint.whatWeAchieveGreek,
       stepByStepGreek: painBlueprint.stepByStepGreek,
       safetyAlertsGreek,
@@ -474,30 +457,30 @@ export function calculateRecommendation(
       zeroFrictionTriggered: false,
       boredAlternative: {
         id: `alt-safety-breath-${safeDuration}`,
-        title: `${safeDuration}' Βαθιά Διαφραγματική Αναπνοή & Χαλάρωση Αυχένα/Ώμων`,
+        title: `${safeDuration}' Βαθιά Αναπνοή & Χαλάρωση Αυχένα/Ώμων`,
         modality: 'mobility',
         durationMins: safeDuration,
-        intensityLabel: 'Safety Gate • Νευρομυϊκή Χαλάρωση',
+        intensityLabel: 'Safety Gate • Χαλάρωση Σώματος',
         reasoningGreek:
-          'Εναλλακτική αποφόρτιση μηδενικού κραδασμού ώστε να μην επιβαρυνθεί καθόλου το σημείο ενόχλησης.',
+          'Εναλλακτική αποφόρτιση μηδενικού κραδασμού ώστε να ξεκουραστεί πλήρως το σημείο ενόχλησης.',
         whatWeAchieveGreek:
-          'Ρίχνουμε την ένταση του νευρικού συστήματος και τη μυϊκή σύσπαση γύρω από την περιοχή που πονάει.',
+          'Ρίχνουμε την ένταση στους μύες και ηρεμούμε το νευρικό σύστημα.',
         stepByStepGreek: [
-          '1. Κάθισε αναπαυτικά με την πλάτη στηριγμένη και τους ώμους χαλαρούς.',
-          '2. Εισέπνευσε αργά από τη μύτη για 4 δευτερόλεπτα φουσκώνοντας την κοιλιά.',
-          '3. Εξέπνευσε αργά από το στόμα για 6 δευτερόλεπτα αφήνοντας τους ώμους να πέσουν.',
-          '4. Κάνε 5 πολύ αργές κλίσεις του κεφαλιού δεξιά-αριστερά.',
+          'Βήμα 1: Στάσου ή κάθισε αναπαυτικά με τους ώμους χαλαρούς.',
+          'Βήμα 2: Εισέπνευσε αργά από τη μύτη για 4 δευτερόλεπτα φουσκώνοντας την κοιλιά.',
+          'Βήμα 3: Εξέπνευσε αργά από το στόμα για 6 δευτερόλεπτα αφήνοντας τους ώμους να πέσουν.',
+          'Βήμα 4: Κάνε 5 πολύ αργές κλίσεις του κεφαλιού δεξιά και αριστερά.',
         ],
         habitPointsAward: 15,
         structuralPointsAward: 2,
       },
       hardDowngrade: {
         id: `down-safety-micro`,
-        title: `${microDuration}' Ήπιο Ξεμπλοκάρισμα & Αναπνοή δίπλα στην καρέκλα`,
+        title: `${microDuration}' Απαλό Ξεμπλοκάρισμα & Αναπνοή`,
         modality: 'mobility',
         durationMins: microDuration,
         intensityLabel: `Micro-Recovery • ${microDuration} Λεπτά`,
-        reasoningGreek: `Το ελάχιστο ασφαλές βήμα αποκατάστασης: ${microDuration} λεπτά ήπιας κίνησης χωρίς καμία πίεση.`,
+        reasoningGreek: `Το ελάχιστο ασφαλές βήμα: ${microDuration} λεπτά ήπιας κίνησης χωρίς καμία πίεση.`,
         whatWeAchieveGreek: microBlueprint.whatWeAchieveGreek,
         stepByStepGreek: microBlueprint.stepByStepGreek,
         habitPointsAward: 15,
@@ -511,7 +494,7 @@ export function calculateRecommendation(
     zone1Cap = true;
     if (poorSleep) {
       safetyAlertsGreek.unshift(
-        `Safety Gate (Ύπνος ${biometrics.sleepScore}/100 < 60): Το νευρικό σύστημα είναι κουρασμένο. Η ένταση περιορίζεται αυστηρά σε Zone 1.`
+        `Safety Gate (Ύπνος ${biometrics.sleepScore}/100 < 60): Το σώμα είναι κουρασμένο από τον ύπνο. Η ένταση κρατιέται χαμηλά (Zone 1).`
       );
     }
     if (elevatedRhr) {
@@ -544,20 +527,17 @@ export function calculateRecommendation(
     let score = 100;
     const impact = MODALITY_IMPACT[modality];
 
-    // Stage-appropriate primary preference
     if (stage === 0 && (modality === 'mobility' || modality === 'walk')) score += 20;
     if (stage === 1 && (modality === 'walk' || modality === 'stairs')) score += 20;
     if (stage === 2 && modality === 'walk_run') score += 25;
     if (stage >= 3 && modality === 'run') score += 30;
 
-    // Zone 1 cap blocks high impact
     if (zone1Cap) {
       if (impact === 'high') score -= 90;
       if (impact === 'moderate') score -= 50;
       if (modality === 'walk' || modality === 'mobility') score += 25;
     }
 
-    // Zero-friction mode prefers zero-prep modalities
     if (zeroFrictionTriggered) {
       if (modality === 'mobility' || modality === 'walk' || modality === 'strength') {
         score += 30;
@@ -566,30 +546,25 @@ export function calculateRecommendation(
       }
     }
 
-    // Environment-specific rules (Γραφείο vs Σπίτι/Παντόφλα vs Σπίτι/Αθλητικά vs Έξω)
     if (checkIn.environment === 'indoor_clothes') {
-      // Office clothes: standing mobility, short office walk, or stairs — NEVER outdoor run or treadmill
       if (modality === 'mobility') score += 35;
       if (modality === 'walk' || modality === 'stairs') score += 20;
       if (modality === 'strength') score += 10;
       if (modality === 'run' || modality === 'walk_run' || modality === 'treadmill') score -= 80;
     } else if (checkIn.environment === 'home_slippers') {
-      // Home with slippers / barefoot: home strength & mobility shine; no outdoor running or shoes required
       if (modality === 'strength' || modality === 'mobility') score += 40;
       if (modality === 'walk') score += 10;
       if (modality === 'run' || modality === 'walk_run' || modality === 'treadmill') score -= 80;
     } else if (checkIn.environment === 'home_gear') {
-      if (modality === 'strength' || modality === 'treadmill' || modality === 'stairs') {
-        score += 30;
-      }
-      if (modality === 'mobility') score += 15;
+      if (modality === 'strength' || modality === 'mobility') score += 35;
+      if (modality === 'walk' || modality === 'stairs') score += 20;
+      if (modality === 'run' || modality === 'walk_run') score -= 60;
     } else if (checkIn.environment === 'outdoor') {
       if (modality === 'run' || modality === 'walk_run' || modality === 'walk') {
         score += 30;
       }
     }
 
-    // Apply rejection taxonomy penalties from behavioral memory
     for (const rej of recentRejections) {
       if (rej.modality === modality) {
         score -= PENALTY_BY_REASON[rej.reason] ?? 35;
@@ -615,9 +590,7 @@ export function calculateRecommendation(
   const secondaryCandidate =
     scoredCandidates.find((c) => c.modality !== primaryModality) ?? scoredCandidates[0];
 
-  // STRICT DURATION CALCULATION:
-  // Always respect checkIn.timeWindowMins as the upper bound!
-  // If user put 2 mins, targetDuration MUST be 2 mins!
+  // STRICT DURATION CALCULATION: Never exceed checkIn.timeWindowMins!
   let targetDuration = requestedMins;
   if (zeroFrictionTriggered) {
     targetDuration = Math.min(requestedMins, 5);
@@ -636,23 +609,22 @@ export function calculateRecommendation(
     zeroFrictionTriggered
   );
 
-  // Build plain-Greek reasoning
   const reasonParts: string[] = [];
   if (requestedMins <= 5) {
     reasonParts.push(
-      `Έχεις διαθέσιμα ακριβώς ${targetDuration} λεπτά, οπότε το πρόγραμμα προσαρμόστηκε αυστηρά στα ${targetDuration}' χωρίς να σου ζητάει παραπάνω χρόνο.`
+      `Έχεις διαθέσιμα ακριβώς ${targetDuration} λεπτά, οπότε η άσκηση προσαρμόστηκε αυστηρά στα ${targetDuration}' χωρίς κανέναν εξοπλισμό.`
     );
   } else if (zeroFrictionTriggered) {
     reasonParts.push(
-      `Επειδή σήμερα η ενέργεια/διάθεση ή το περιβάλλον έχουν υψηλή τριβή (MOS ${mosScore}/100), το σύστημα κατέβασε τη διάρκεια στα ${targetDuration} λεπτά (Πρωτόκολλο Μηδενικής Τριβής) για να ξεκινήσεις πανεύκολα.`
+      `Επειδή σήμερα η ενέργεια ή η διάθεση είναι πιο χαμηλά, κρατάμε τη διάρκεια στα ${targetDuration} λεπτά (Πρωτόκολλο Μηδενικής Τριβής) για να ξεκινήσεις πανεύκολα.`
     );
   } else if (zone1Cap) {
     reasonParts.push(
-      `Λόγω των σημερινών δεικτών αποκατάστασης, η ένταση κρατιέται χαμηλά σε Zone 1 (${targetDuration} λεπτά) ώστε να κερδίσεις συνέπεια χωρίς κόπωση.`
+      `Λόγω των σημερινών δεικτών αποκατάστασης, η ένταση κρατιέται χαμηλά σε Zone 1 (${targetDuration} λεπτά) ώστε να κερδίσεις συνέπεια χωρίς κούραση.`
     );
   } else {
     reasonParts.push(
-      `Ιδανική αντιστοίχιση για τα ${targetDuration} διαθέσιμα λεπτά σου και τον χώρο που βρίσκεσαι (MOS ${mosScore}/100 στο ${stageDef.code}).`
+      `Προσαρμοσμένο στα ${targetDuration} διαθέσιμα λεπτά σου και στον χώρο που βρίσκεσαι, χωρίς να χρειάζεσαι κανένα όργανο.`
     );
   }
 
@@ -667,7 +639,6 @@ export function calculateRecommendation(
     );
   }
 
-  // Bored Alternative (Swaps modality while strictly keeping targetDuration)
   const boredDetails = buildPrescriptionDetails(
     secondaryCandidate.modality,
     stage,
@@ -683,14 +654,13 @@ export function calculateRecommendation(
     modality: secondaryCandidate.modality,
     durationMins: targetDuration,
     intensityLabel: boredDetails.intensityLabel,
-    reasoningGreek: `Εναλλαγή σε «${MODALITY_LABELS_GREEK[secondaryCandidate.modality]}» (${targetDuration} λεπτά) για αλλαγή ερεθίσματος χωρίς απώλεια πόντων συνέπειας.`,
+    reasoningGreek: `Εναλλαγή σε «${MODALITY_LABELS_GREEK[secondaryCandidate.modality]}» (${targetDuration} λεπτά) χωρίς εξοπλισμό.`,
     whatWeAchieveGreek: boredDetails.whatWeAchieveGreek,
     stepByStepGreek: boredDetails.stepByStepGreek,
     habitPointsAward: boredDetails.habitPointsAward,
     structuralPointsAward: boredDetails.structuralPointsAward,
   };
 
-  // Hard Downgrade (2 min micro-step without guilt or penalty)
   const microDuration = Math.min(2, targetDuration);
   const microModality: ModalityType =
     checkIn.environment === 'indoor_clothes' || checkIn.environment === 'home_slippers'
@@ -710,8 +680,8 @@ export function calculateRecommendation(
     title: microDetails.title,
     modality: microModality,
     durationMins: microDuration,
-    intensityLabel: `Micro-Step ${microDuration}' • 100% Επιβράβευση Εκκίνησης`,
-    reasoningGreek: `Μείωση στα ${microDuration} λεπτά μηδενικού κόστους. Η εκκίνηση μετράει 100% στη συνέπειά σου.`,
+    intensityLabel: `Micro-Step ${microDuration}' • Πανεύκολο Ξεκίνημα`,
+    reasoningGreek: `Μείωση στα ${microDuration} λεπτά. Ακόμα και ${microDuration} λεπτά κίνησης μετράνε 100% στη συνέπειά σου!`,
     whatWeAchieveGreek: microDetails.whatWeAchieveGreek,
     stepByStepGreek: microDetails.stepByStepGreek,
     habitPointsAward: 15,

@@ -318,9 +318,10 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       expect(batch.mergedProfile.fastingGlucose).toBe(94);
     });
 
-    it('provides 10 structured home conditioning protocols with step-by-step Greek exercises', () => {
-      expect(HOME_WORKOUT_PROTOCOLS.length).toBe(10);
+    it('provides 16 equipment-free home conditioning protocols with step-by-step Greek exercises', () => {
+      expect(HOME_WORKOUT_PROTOCOLS.length).toBe(16);
       for (const proto of HOME_WORKOUT_PROTOCOLS) {
+        expect(proto.equipmentGreek).toBe('Κανένας εξοπλισμός');
         expect(proto.exercisesGreek.length).toBeGreaterThan(0);
         expect(proto.whatWeAchieveGreek.length).toBeGreaterThan(10);
         expect(proto.habitPointsAward).toBeGreaterThanOrEqual(14);

@@ -1,10 +1,10 @@
 export type StageId = 0 | 1 | 2 | 3 | 4 | 5;
 
 export type EnvironmentType =
-  | 'indoor_clothes' // Γραφείο / Ρούχα Γραφείου (όρθιες, διακριτικές κινήσεις χωρίς ίδρωμα)
-  | 'home_slippers' // Σπίτι / Παντόφλα & Ρούχα Σπιτιού (καρέκλα, καναπές, χαλί, τοίχος — χωρίς παπούτσια)
-  | 'home_gear' // Σπίτι / Με Αθλητικά ή Διάδρομο (πλήρης εκγύμναση σπιτιού, σκάλα, διάδρομος)
-  | 'outdoor'; // Έξω / Αθλητικά Παπούτσια (περπάτημα, εναλλαγές, τρέξιμο)
+  | 'indoor_clothes' // Στο Γραφείο / Με Ρούχα Δουλειάς (όρθιες κινήσεις, χωρίς ίδρωμα)
+  | 'home_slippers' // Στο Σπίτι / Με Παντόφλα ή Κάλτσες (χωρίς κανέναν εξοπλισμό)
+  | 'home_gear' // Στο Σπίτι / Έτοιμος για Γυμναστική (χωρίς κανέναν εξοπλισμό)
+  | 'outdoor'; // Έξω στον Δρόμο / Πάρκο (περπάτημα ή τρέξιμο)
 
 export type ModalityType =
   | 'walk'
@@ -113,7 +113,7 @@ export interface UserProgressionState {
   id: 'singleton';
   currentStage: StageId;
   habitConsistencyScore: number; // 0 - 100
-  runningReadiness: number; // 0 - 100 (weighted tendon/aerobic load)
+  runningReadiness: number; // 0 - 100
   totalSessionsCompleted: number;
   lastActiveDate: string | null;
   lastCheckIn: CheckInInput;
@@ -145,9 +145,9 @@ export const STAGES: Record<StageId, StageDefinition> = {
     id: 0,
     code: 'STAGE 0',
     titleGreek: 'Σπάσιμο Αδράνειας',
-    subtitleGreek: 'Μηδενικό κόστος εκκίνησης & νευρομυϊκή αφύπνιση',
+    subtitleGreek: 'Ξεκινάμε εύκολα, χωρίς πίεση, με 2 έως 5 λεπτά κίνησης',
     descriptionGreek:
-      'Στόχος δεν είναι η γυμναστική, αλλά η καταστροφή της στατικότητας του γραφείου. Κάθε 2λεπτη ή 5λεπτη κίνηση χτίζει το νευρικό κύκλωμα της συνέπειας.',
+      'Στόχος δεν είναι να κουραστείς, αλλά να σηκωθείς από την καρέκλα. Κάθε μικρή κίνηση ξυπνάει το σώμα και χτίζει τη συνήθεια.',
     minHabitScoreToAdvance: 45,
     minReadinessToAdvance: 15,
     allowedModalities: ['mobility', 'walk', 'stairs'],
@@ -155,10 +155,10 @@ export const STAGES: Record<StageId, StageDefinition> = {
   1: {
     id: 1,
     code: 'STAGE 1',
-    titleGreek: 'Αερόβια Βάση & Ρυθμός',
-    subtitleGreek: 'Σταθερό περπάτημα, σκάλες & έλεγχος αναπνοής (Zone 1-2)',
+    titleGreek: 'Ρυθμός & Ανάσα',
+    subtitleGreek: 'Άνετο περπάτημα και ήπια ενδυνάμωση χωρίς λαχάνιασμα',
     descriptionGreek:
-      'Αύξηση της αιμάτωσης και ενεργοποίηση μιτοχονδρίων χωρίς κραδασμούς. Προετοιμασία αρθρώσεων και πελματιαίας περιτονίας.',
+      'Βελτιώνουμε την κυκλοφορία του αίματος και δυναμώνουμε πόδια και μέση χωρίς κανέναν κραδασμό στις αρθρώσεις.',
     minHabitScoreToAdvance: 60,
     minReadinessToAdvance: 35,
     allowedModalities: ['walk', 'stairs', 'treadmill', 'mobility', 'strength'],
@@ -166,10 +166,10 @@ export const STAGES: Record<StageId, StageDefinition> = {
   2: {
     id: 2,
     code: 'STAGE 2',
-    titleGreek: 'Δομική Θωράκιση & Εναλλαγές',
-    subtitleGreek: 'Εισαγωγή ήπιων εναλλαγών περπατήματος-τρεξίματος',
+    titleGreek: 'Δυνατά Πόδια & Εναλλαγές',
+    subtitleGreek: 'Περπάτημα με μικρά διαστήματα πολύ χαλαρού τρεξίματος',
     descriptionGreek:
-      'Οι τένοντες (Αχίλλειος, επιγονατιδικός) χρειάζονται προοδευτικό μηχανικό φορτίο. Ελεγχόμενα διαστήματα ήπιου τρεξίματος με πλήρη αποκατάσταση.',
+      'Τα γόνατα και οι αστράγαλοι δυναμώνουν σταδιακά. Εναλλάσσουμε περπάτημα με 1 λεπτό χαλαρό τζόκινγκ.',
     minHabitScoreToAdvance: 70,
     minReadinessToAdvance: 55,
     allowedModalities: ['walk_run', 'walk', 'treadmill', 'strength', 'mobility', 'stairs'],
@@ -178,9 +178,9 @@ export const STAGES: Record<StageId, StageDefinition> = {
     id: 3,
     code: 'STAGE 3',
     titleGreek: 'Συνεχόμενη Ροή (20-30 λεπτά)',
-    subtitleGreek: 'Σταθεροποίηση δρομικής οικονομίας & διαχείριση κόπωσης',
+    subtitleGreek: 'Σταθερό, ξεκούραστο τρέξιμο σε ρυθμό συζήτησης',
     descriptionGreek:
-      'Μετάβαση από διαλλειματική κίνηση σε συνεχή αερόβιο ρυθμό. Έμφαση στη χαμηλή καρδιακή συχνότητα και την ελαστική επιστροφή ενέργειας.',
+      'Το σώμα πλέον κινείται άνετα για 20-30 λεπτά. Κρατάμε χαμηλούς παλμούς και απολαμβάνουμε τη ροή.',
     minHabitScoreToAdvance: 80,
     minReadinessToAdvance: 75,
     allowedModalities: ['run', 'walk_run', 'treadmill', 'strength', 'mobility', 'walk'],
@@ -188,10 +188,10 @@ export const STAGES: Record<StageId, StageDefinition> = {
   4: {
     id: 4,
     code: 'STAGE 4',
-    titleGreek: 'Κατάκτηση 5km',
-    subtitleGreek: 'Ολοκλήρωση 5 χιλιομέτρων με άνεση και μηδενικό τραυματισμό',
+    titleGreek: 'Κατάκτηση 5 Χιλιομέτρων',
+    subtitleGreek: 'Ολοκλήρωση 5km με άνεση, χαμόγελο και μηδενικό τραυματισμό',
     descriptionGreek:
-      'Πλήρης αερόβια και τενόντια προσαρμογή για 5 συνεχόμενα χιλιόμετρα. Το σώμα πλέον αναζητά την κίνηση ως αποσυμπίεση.',
+      'Έχεις χτίσει την αντοχή και τη δύναμη για 5 συνεχόμενα χιλιόμετρα. Η κίνηση έχει γίνει πλέον ανάγκη και ξεκούραση.',
     minHabitScoreToAdvance: 85,
     minReadinessToAdvance: 90,
     allowedModalities: ['run', 'treadmill', 'walk_run', 'strength', 'mobility', 'walk'],
@@ -199,10 +199,10 @@ export const STAGES: Record<StageId, StageDefinition> = {
   5: {
     id: 5,
     code: 'STAGE 5',
-    titleGreek: 'Αγωνιστική Ετοιμότητα 5K',
-    subtitleGreek: 'Βελτιστοποίηση ρυθμού, VO2max & στρατηγική αγώνα',
+    titleGreek: 'Ετοιμότητα Αγώνα 5K',
+    subtitleGreek: 'Βελτίωση ρυθμού και ενέργειας για τον αγώνα σου',
     descriptionGreek:
-      'Εξειδικευμένες προσαρμογές ρυθμού, νευρομυϊκής ισχύος και αποκατάστασης για ασφαλή και απολαυστική συμμετοχή σε αγώνα 5km.',
+      'Εξειδικευμένες ασκήσεις ρυθμού και αποκατάστασης για να απολαύσεις τον αγώνα 5km με ασφάλεια.',
     minHabitScoreToAdvance: 100,
     minReadinessToAdvance: 100,
     allowedModalities: ['run', 'treadmill', 'strength', 'mobility', 'walk_run', 'walk'],
@@ -213,22 +213,22 @@ export const MODALITY_LABELS_GREEK: Record<ModalityType, string> = {
   walk: 'Ζωηρό Περπάτημα',
   stairs: 'Ανάβαση Σκάλας',
   treadmill: 'Διάδρομος',
-  mobility: 'Ξεμπλοκάρισμα Σώματος & Διατάσεις',
-  strength: 'Ενδυνάμωση Ποδιών & Κορμού',
-  walk_run: 'Εναλλαγές Περπάτημα / Τρέξιμο',
+  mobility: 'Ξεμπλοκάρισμα & Ευλυγισία',
+  strength: 'Ενδυνάμωση Χωρίς Όργανα',
+  walk_run: 'Περπάτημα & Χαλαρό Τρέξιμο',
   run: 'Συνεχόμενο Τρέξιμο',
 };
 
 export const ENVIRONMENT_LABELS_GREEK: Record<EnvironmentType, string> = {
-  indoor_clothes: 'Γραφείο / Ρούχα Γραφείου (όρθιες κινήσεις, χωρίς ίδρωμα)',
-  home_slippers: 'Σπίτι / Με Παντόφλα & Ρούχα Σπιτιού (καναπές, χαλί, καρέκλα)',
-  home_gear: 'Σπίτι / Με Αθλητικά Παπούτσια ή Διάδρομο',
-  outdoor: 'Έξω στον Δρόμο / Πάρκο με Αθλητικά',
+  indoor_clothes: 'Γραφείο / Με Ρούχα Δουλειάς (Όρθιες κινήσεις, χωρίς ίδρωμα)',
+  home_slippers: 'Σπίτι / Με Παντόφλα ή Κάλτσες (Χωρίς κανέναν εξοπλισμό)',
+  home_gear: 'Σπίτι / Έτοιμος για Γυμναστική (Χωρίς κανέναν εξοπλισμό)',
+  outdoor: 'Έξω στον Δρόμο ή στο Πάρκο (Περπάτημα / Τρέξιμο)',
 };
 
 export const REJECTION_REASON_LABELS_GREEK: Record<RejectionReason, string> = {
   boredom: 'Βαρεμάρα / Μονοτονία',
   lack_of_time: 'Πίεση Χρόνου',
-  pain_fatigue: 'Πόνος ή Εξάντληση',
+  pain_fatigue: 'Πόνος ή Κούραση',
   environment_lock: 'Περιορισμός Χώρου / Ρούχων',
 };
