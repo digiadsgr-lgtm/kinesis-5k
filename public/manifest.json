@@ -1,0 +1,19 @@
+{
+  "name": "KINESIS: Sit to 5K",
+  "short_name": "KINESIS",
+  "description": "State-Driven Adaptive Transition Engine — Από την αδράνεια στα 5km χωρίς ενοχές.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "orientation": "portrait",
+  "lang": "el-GR",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
