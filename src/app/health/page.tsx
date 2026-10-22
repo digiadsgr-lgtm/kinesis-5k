@@ -46,11 +46,16 @@ export default function HealthBiomarkersHub() {
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    Promise.all([getKinesisSnapshot(), getUploadedPdfHistory()]).then(([snap, history]) => {
-      setBiometrics(snap.biometrics);
-      setBiomarkers(snap.biomarkers);
-      setPdfHistory(history);
-    });
+    const load = () => {
+      Promise.all([getKinesisSnapshot(), getUploadedPdfHistory()]).then(([snap, history]) => {
+        setBiometrics(snap.biometrics);
+        setBiomarkers(snap.biomarkers);
+        setPdfHistory(history);
+      });
+    };
+    load();
+    window.addEventListener('kinesis-sync-restored', load);
+    return () => window.removeEventListener('kinesis-sync-restored', load);
   }, []);
 
   const mergeAndSavePdfResults = async (newResults: PdfExtractionResult[]) => {
@@ -232,407 +237,416 @@ export default function HealthBiomarkersHub() {
         </div>
       )}
 
-      {/* MULTI-PDF LAB REPORT SMART EXTRACTOR (100% Local-First) */}
-      <section
-        aria-label="Αυτόματη Ανάγνωση Πολλαπλών PDF Μικροβιολογικού"
-        className="space-y-3.5 rounded-2xl border border-emerald-500/35 bg-zinc-900 p-5 shadow-lg"
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-              <Sparkles className="h-3 w-3" />
-              Υποστήριξη Πολλαπλών PDF • 100% Τοπικά
-            </span>
-            <h2 className="mt-1.5 text-sm font-bold text-zinc-100">
-              Αυτόματη Ανάγνωση & Συγχώνευση Πολλαπλών PDF Εξετάσεων
-            </h2>
-            <p className="mt-0.5 text-xs text-zinc-400">
-              Επίλεξε <strong>ένα ή περισσότερα PDF ταυτόχρονα</strong> (π.χ. ξεχωριστό PDF για
-              Γενική Αίματος, ξεχωριστό για Βιοχημικές / Βιταμίνες από myHealth ή διαγνωστικό). Το
-              σύστημα ενώνει αυτόματα όλες τις τιμές!
-            </p>
-          </div>
-          <Files className="h-6 w-6 shrink-0 text-emerald-400" />
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-xs font-bold text-zinc-950 shadow-lg shadow-emerald-500/20 transition active:scale-[0.99]">
-            <FileUp className="h-4 w-4" />
-            {isParsingPdf ? 'Ανάλυση Αρχείων PDF...' : 'Επιλογή 1 ή Πολλαπλών PDF'}
-            <input
-              ref={pdfInputRef}
-              type="file"
-              multiple
-              accept="application/pdf,.pdf,.txt"
-              onChange={handleMultiPdfUpload}
-              className="hidden"
-            />
-          </label>
-
-          <button
-            type="button"
-            onClick={handleTestMultipleSamplePdfs}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-3 text-xs font-semibold text-zinc-200 hover:bg-zinc-700"
+      {/* 100% Responsive 2-Column Layout on Desktop, 1-Column on Mobile */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
+        {/* LEFT COLUMN: Multi-PDF Lab Extractor & History */}
+        <div className="space-y-5 lg:col-span-6">
+          {/* MULTI-PDF LAB REPORT SMART EXTRACTOR (100% Local-First) */}
+          <section
+            aria-label="Αυτόματη Ανάγνωση Πολλαπλών PDF Μικροβιολογικού"
+            className="space-y-3.5 rounded-2xl border border-emerald-500/35 bg-zinc-900 p-4 sm:p-5 shadow-lg"
           >
-            <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-            Δοκιμή με 2 PDF Ταυτόχρονα
-          </button>
-        </div>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                  <Sparkles className="h-3 w-3" />
+                  Υποστήριξη Πολλαπλών PDF • 100% Τοπικά
+                </span>
+                <h2 className="mt-1.5 text-sm font-bold text-zinc-100 sm:text-base">
+                  Αυτόματη Ανάγνωση & Συγχώνευση Πολλαπλών PDF Εξετάσεων
+                </h2>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  Επίλεξε <strong>ένα ή περισσότερα PDF ταυτόχρονα</strong> (π.χ. ξεχωριστό PDF για
+                  Γενική Αίματος, ξεχωριστό για Βιοχημικές / Βιταμίνες από myHealth ή διαγνωστικό). Το
+                  σύστημα ενώνει αυτόματα όλες τις τιμές!
+                </p>
+              </div>
+              <Files className="h-6 w-6 shrink-0 text-emerald-400" />
+            </div>
 
-        <div className="flex items-center justify-between text-[11px] text-zinc-400">
-          <button
-            type="button"
-            onClick={() => setShowPasteBox((p) => !p)}
-            className="underline decoration-zinc-600 hover:text-zinc-200"
-          >
-            {showPasteBox ? 'Κλείσιμο επικόλλησης κειμένου' : 'Ή επικόλλησε κείμενο εξετάσεων'}
-          </button>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-xs font-bold text-zinc-950 shadow-lg shadow-emerald-500/20 transition active:scale-[0.99]">
+                <FileUp className="h-4 w-4" />
+                {isParsingPdf ? 'Ανάλυση Αρχείων PDF...' : 'Επιλογή 1 ή Πολλαπλών PDF'}
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  multiple
+                  accept="application/pdf,.pdf,.txt"
+                  onChange={handleMultiPdfUpload}
+                  className="hidden"
+                />
+              </label>
 
-          <button
-            type="button"
-            onClick={handleDownloadSamplePdf}
-            className="inline-flex items-center gap-1 text-emerald-400 hover:underline"
-          >
-            <Download className="h-3 w-3" />
-            Λήψη δείγματος PDF
-          </button>
-        </div>
-
-        {showPasteBox && (
-          <div className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-            <textarea
-              rows={3}
-              value={pastedLabText}
-              onChange={(e) => setPastedLabText(e.target.value)}
-              placeholder="π.χ. Φερριτίνη: 22.4 ng/mL, Αιμοσφαιρίνη: 13.8 g/dL, Βιταμίνη D: 24 ng/mL, CRP: 1.2 mg/L..."
-              className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={handleParsePastedText}
-              className="w-full rounded-lg bg-emerald-500/20 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30"
-            >
-              Εξαγωγή & Συγχώνευση Τιμών
-            </button>
-          </div>
-        )}
-
-        {pdfError && (
-          <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-            <span>{pdfError}</span>
-          </div>
-        )}
-
-        {/* Persistent List of Uploaded PDFs */}
-        {pdfHistory.length > 0 && (
-          <div className="space-y-2.5 rounded-xl border border-emerald-500/30 bg-zinc-950 p-3.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-emerald-400">
-                Ανεβασμένα Αρχεία Εξετάσεων ({pdfHistory.length})
-              </span>
               <button
                 type="button"
-                onClick={handleClearAllPdfHistory}
-                className="text-[11px] text-zinc-400 hover:text-amber-400"
+                onClick={handleTestMultipleSamplePdfs}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-3 text-xs font-semibold text-zinc-200 hover:bg-zinc-700"
               >
-                Καθαρισμός λίστας
+                <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                Δοκιμή με 2 PDF Ταυτόχρονα
               </button>
             </div>
 
-            <div className="space-y-2.5">
-              {pdfHistory.map((pdf) => (
-                <div
-                  key={pdf.id}
-                  className="rounded-xl border border-zinc-800 bg-zinc-900/90 p-3 text-xs"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-bold text-zinc-100">{pdf.fileName}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePdfFromHistory(pdf.id)}
-                      className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
-                      title="Αφαίρεση αρχείου"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-400">
+              <button
+                type="button"
+                onClick={() => setShowPasteBox((p) => !p)}
+                className="underline decoration-zinc-600 hover:text-zinc-200"
+              >
+                {showPasteBox ? 'Κλείσιμο επικόλλησης κειμένου' : 'Ή επικόλλησε κείμενο εξετάσεων'}
+              </button>
 
-                  {pdf.detectedItems.length > 0 && (
-                    <div className="mt-2 grid grid-cols-2 gap-1.5">
-                      {pdf.detectedItems.map((item) => (
-                        <div
-                          key={item.key}
-                          className={`rounded-lg border px-2.5 py-1.5 ${
-                            item.status === 'warning'
-                              ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
-                              : 'border-zinc-800 bg-zinc-950 text-zinc-200'
-                          }`}
-                        >
-                          <div className="text-[10px] text-zinc-400">{item.labelGreek}</div>
-                          <div className="font-bold">
-                            {item.value} {item.unit}{' '}
-                            {item.status === 'warning' && (
-                              <span className="text-[10px] font-semibold text-amber-400">
-                                • Κόφτης
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {pdf.extraFindingsGreek.length > 0 && (
-                    <div className="mt-2 border-t border-zinc-800/80 pt-1.5 text-[11px] text-zinc-300">
-                      <strong className="text-emerald-400">Επιπλέον: </strong>
-                      {pdf.extraFindingsGreek.join(' • ')}
-                    </div>
-                  )}
-                </div>
-              ))}
+              <button
+                type="button"
+                onClick={handleDownloadSamplePdf}
+                className="inline-flex items-center gap-1 text-emerald-400 hover:underline"
+              >
+                <Download className="h-3 w-3" />
+                Λήψη δείγματος PDF
+              </button>
             </div>
-          </div>
-        )}
-      </section>
 
-      {/* Daily Smartwatch Biometrics */}
-      <form
-        onSubmit={handleSaveBiometrics}
-        className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-5"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Moon className="h-4 w-4 text-emerald-400" />
-            <h2 className="text-sm font-bold text-zinc-100">Ημερήσια Βιομετρικά (Smartwatch)</h2>
-          </div>
-          {(rhrElevated || sleepLow) && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-amber-400">
-              <ShieldAlert className="h-3 w-3" />
-              Zone 1 Cap Ενεργό
-            </span>
-          )}
+            {showPasteBox && (
+              <div className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+                <textarea
+                  rows={3}
+                  value={pastedLabText}
+                  onChange={(e) => setPastedLabText(e.target.value)}
+                  placeholder="π.χ. Φερριτίνη: 22.4 ng/mL, Αιμοσφαιρίνη: 13.8 g/dL, Βιταμίνη D: 24 ng/mL, CRP: 1.2 mg/L..."
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleParsePastedText}
+                  className="w-full rounded-lg bg-emerald-500/20 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30"
+                >
+                  Εξαγωγή & Συγχώνευση Τιμών
+                </button>
+              </div>
+            )}
+
+            {pdfError && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                <span>{pdfError}</span>
+              </div>
+            )}
+
+            {/* Persistent List of Uploaded PDFs */}
+            {pdfHistory.length > 0 && (
+              <div className="space-y-2.5 rounded-xl border border-emerald-500/30 bg-zinc-950 p-3.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400">
+                    Ανεβασμένα Αρχεία Εξετάσεων ({pdfHistory.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleClearAllPdfHistory}
+                    className="text-[11px] text-zinc-400 hover:text-amber-400"
+                  >
+                    Καθαρισμός λίστας
+                  </button>
+                </div>
+
+                <div className="space-y-2.5">
+                  {pdfHistory.map((pdf) => (
+                    <div
+                      key={pdf.id}
+                      className="rounded-xl border border-zinc-800 bg-zinc-900/90 p-3 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-zinc-100 break-all">{pdf.fileName}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePdfFromHistory(pdf.id)}
+                          className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+                          title="Αφαίρεση αρχείου"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      {pdf.detectedItems.length > 0 && (
+                        <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                          {pdf.detectedItems.map((item) => (
+                            <div
+                              key={item.key}
+                              className={`rounded-lg border px-2.5 py-1.5 ${
+                                item.status === 'warning'
+                                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
+                                  : 'border-zinc-800 bg-zinc-950 text-zinc-200'
+                              }`}
+                            >
+                              <div className="text-[10px] text-zinc-400">{item.labelGreek}</div>
+                              <div className="font-bold">
+                                {item.value} {item.unit}{' '}
+                                {item.status === 'warning' && (
+                                  <span className="text-[10px] font-semibold text-amber-400">
+                                    • Κόφτης
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {pdf.extraFindingsGreek.length > 0 && (
+                        <div className="mt-2 border-t border-zinc-800/80 pt-1.5 text-[11px] text-zinc-300">
+                          <strong className="text-emerald-400">Επιπλέον: </strong>
+                          {pdf.extraFindingsGreek.join(' • ')}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-zinc-400">Σκορ Ύπνου (0-100)</label>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={biometrics.sleepScore}
-              onChange={(e) =>
-                setBiometrics({ ...biometrics, sleepScore: Number(e.target.value) })
-              }
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-            <span className="mt-0.5 block text-[10px] text-zinc-500">Safety Gate αν &lt; 60</span>
-          </div>
+        {/* RIGHT COLUMN: Smartwatch Biometrics & Blood Biomarkers Forms */}
+        <div className="space-y-5 lg:col-span-6">
+          {/* Daily Smartwatch Biometrics */}
+          <form
+            onSubmit={handleSaveBiometrics}
+            className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Moon className="h-4 w-4 text-emerald-400" />
+                <h2 className="text-sm font-bold text-zinc-100">Ημερήσια Βιομετρικά (Smartwatch)</h2>
+              </div>
+              {(rhrElevated || sleepLow) && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-amber-400">
+                  <ShieldAlert className="h-3 w-3" />
+                  Zone 1 Cap Ενεργό
+                </span>
+              )}
+            </div>
 
-          <div>
-            <label className="block text-xs text-zinc-400">HRV (ms)</label>
-            <input
-              type="number"
-              min={10}
-              max={200}
-              value={biometrics.hrv}
-              onChange={(e) => setBiometrics({ ...biometrics, hrv: Number(e.target.value) })}
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-            <span className="mt-0.5 block text-[10px] text-zinc-500">Μεταβλητότητα Καρδιάς</span>
-          </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs text-zinc-400">Σκορ Ύπνου (0-100)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={biometrics.sleepScore}
+                  onChange={(e) =>
+                    setBiometrics({ ...biometrics, sleepScore: Number(e.target.value) })
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+                <span className="mt-0.5 block text-[10px] text-zinc-500">Safety Gate αν &lt; 60</span>
+              </div>
 
-          <div>
-            <label className="block text-xs text-zinc-400">Σημερινό RHR (bpm)</label>
-            <input
-              type="number"
-              min={35}
-              max={120}
-              value={biometrics.rhr}
-              onChange={(e) => setBiometrics({ ...biometrics, rhr: Number(e.target.value) })}
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-            <span className="mt-0.5 block text-[10px] text-zinc-500">
-              Safety Gate αν &gt; Βάση + 5
-            </span>
-          </div>
+              <div>
+                <label className="block text-xs text-zinc-400">HRV (ms)</label>
+                <input
+                  type="number"
+                  min={10}
+                  max={200}
+                  value={biometrics.hrv}
+                  onChange={(e) => setBiometrics({ ...biometrics, hrv: Number(e.target.value) })}
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+                <span className="mt-0.5 block text-[10px] text-zinc-500">Μεταβλητότητα Καρδιάς</span>
+              </div>
 
-          <div>
-            <label className="block text-xs text-zinc-400">Βάση RHR (bpm)</label>
-            <input
-              type="number"
-              min={35}
-              max={120}
-              value={biometrics.baselineRhr}
-              onChange={(e) =>
-                setBiometrics({ ...biometrics, baselineRhr: Number(e.target.value) })
-              }
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-            <span className="mt-0.5 block text-[10px] text-zinc-500">Μέσος όρος 30 ημερών</span>
-          </div>
+              <div>
+                <label className="block text-xs text-zinc-400">Σημερινό RHR (bpm)</label>
+                <input
+                  type="number"
+                  min={35}
+                  max={120}
+                  value={biometrics.rhr}
+                  onChange={(e) => setBiometrics({ ...biometrics, rhr: Number(e.target.value) })}
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+                <span className="mt-0.5 block text-[10px] text-zinc-500">
+                  Safety Gate αν &gt; Βάση + 5
+                </span>
+              </div>
 
-          <div>
-            <label className="block text-xs text-zinc-400">Βήματα Σήμερα</label>
-            <input
-              type="number"
-              min={0}
-              max={50000}
-              value={biometrics.stepsSoFar}
-              onChange={(e) =>
-                setBiometrics({ ...biometrics, stepsSoFar: Number(e.target.value) })
-              }
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-          </div>
+              <div>
+                <label className="block text-xs text-zinc-400">Βάση RHR (bpm)</label>
+                <input
+                  type="number"
+                  min={35}
+                  max={120}
+                  value={biometrics.baselineRhr}
+                  onChange={(e) =>
+                    setBiometrics({ ...biometrics, baselineRhr: Number(e.target.value) })
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+                <span className="mt-0.5 block text-[10px] text-zinc-500">Μέσος όρος 30 ημερών</span>
+              </div>
 
-          <div>
-            <label className="block text-xs text-zinc-400">Βάρος (kg)</label>
-            <input
-              type="number"
-              step="0.1"
-              min={35}
-              max={250}
-              value={biometrics.weight}
-              onChange={(e) => setBiometrics({ ...biometrics, weight: Number(e.target.value) })}
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-          </div>
+              <div>
+                <label className="block text-xs text-zinc-400">Βήματα Σήμερα</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={50000}
+                  value={biometrics.stepsSoFar}
+                  onChange={(e) =>
+                    setBiometrics({ ...biometrics, stepsSoFar: Number(e.target.value) })
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-zinc-400">Βάρος (kg)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min={35}
+                  max={250}
+                  value={biometrics.weight}
+                  onChange={(e) => setBiometrics({ ...biometrics, weight: Number(e.target.value) })}
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-xs font-bold text-zinc-950 shadow-lg shadow-emerald-500/20 active:scale-[0.99]"
+            >
+              <Save className="h-4 w-4" />
+              Αποθήκευση Βιομετρικών Ημέρας
+            </button>
+          </form>
+
+          {/* Blood Biomarkers Form */}
+          <form
+            onSubmit={handleSaveBiomarkers}
+            className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"
+          >
+            <div className="flex items-center gap-2">
+              <Droplets className="h-4 w-4 text-emerald-400" />
+              <h2 className="text-sm font-bold text-zinc-100">
+                Αιματολογικοί Δείκτες (Συγχωνευμένο Προφίλ)
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs text-zinc-400">Φερριτίνη (ng/mL)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={biomarkers.ferritin ?? ''}
+                  onChange={(e) =>
+                    setBiomarkers({ ...biomarkers, ferritin: parseNullableNumber(e.target.value) })
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+                <span className="mt-0.5 block text-[10px] text-zinc-500">Κόφτης αν &lt; 30</span>
+              </div>
+
+              <div>
+                <label className="block text-xs text-zinc-400">Αιμοσφαιρίνη (g/dL)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={biomarkers.hemoglobin ?? ''}
+                  onChange={(e) =>
+                    setBiomarkers({ ...biomarkers, hemoglobin: parseNullableNumber(e.target.value) })
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+                <span className="mt-0.5 block text-[10px] text-zinc-500">Κόφτης αν &lt; 12.5</span>
+              </div>
+
+              <div>
+                <label className="block text-xs text-zinc-400">Βιταμίνη D (ng/mL)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={biomarkers.vitaminD ?? ''}
+                  onChange={(e) =>
+                    setBiomarkers({ ...biomarkers, vitaminD: parseNullableNumber(e.target.value) })
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+                <span className="mt-0.5 block text-[10px] text-zinc-500">Ειδοποίηση αν &lt; 25</span>
+              </div>
+
+              <div>
+                <label className="block text-xs text-zinc-400">Βιταμίνη B12 (pg/mL)</label>
+                <input
+                  type="number"
+                  step="1"
+                  value={biomarkers.vitaminB12 ?? ''}
+                  onChange={(e) =>
+                    setBiomarkers({ ...biomarkers, vitaminB12: parseNullableNumber(e.target.value) })
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+                <span className="mt-0.5 block text-[10px] text-zinc-500">Ειδοποίηση αν &lt; 250</span>
+              </div>
+
+              <div>
+                <label className="block text-xs text-zinc-400">CRP Φλεγμονή (mg/L)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={biomarkers.crp ?? ''}
+                  onChange={(e) =>
+                    setBiomarkers({ ...biomarkers, crp: parseNullableNumber(e.target.value) })
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+                <span className="mt-0.5 block text-[10px] text-zinc-500">Κόφτης αν &gt; 3.0</span>
+              </div>
+
+              <div>
+                <label className="block text-xs text-zinc-400">Γλυκόζη Νηστείας (mg/dL)</label>
+                <input
+                  type="number"
+                  step="1"
+                  value={biomarkers.fastingGlucose ?? ''}
+                  onChange={(e) =>
+                    setBiomarkers({
+                      ...biomarkers,
+                      fastingGlucose: parseNullableNumber(e.target.value),
+                    })
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-zinc-400">
+                Ιατρικοί Περιορισμοί / Ευαισθησίες Τενόντων & Επιπλέον Δείκτες
+              </label>
+              <input
+                type="text"
+                value={biomarkers.medicalRestrictions}
+                onChange={(e) =>
+                  setBiomarkers({ ...biomarkers, medicalRestrictions: e.target.value })
+                }
+                placeholder="π.χ. Ιστορικό τενοντίτιδας Αχιλλείου, ευαισθησία μέσης..."
+                className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/50 bg-emerald-500/15 py-3 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 active:scale-[0.99]"
+            >
+              <Activity className="h-4 w-4" />
+              Ενημέρωση Προφίλ Αιματολογικών
+            </button>
+          </form>
         </div>
-
-        <button
-          type="submit"
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-xs font-bold text-zinc-950 shadow-lg shadow-emerald-500/20 active:scale-[0.99]"
-        >
-          <Save className="h-4 w-4" />
-          Αποθήκευση Βιομετρικών Ημέρας
-        </button>
-      </form>
-
-      {/* Blood Biomarkers Form */}
-      <form
-        onSubmit={handleSaveBiomarkers}
-        className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-5"
-      >
-        <div className="flex items-center gap-2">
-          <Droplets className="h-4 w-4 text-emerald-400" />
-          <h2 className="text-sm font-bold text-zinc-100">
-            Αιματολογικοί Δείκτες (Συγχωνευμένο Προφίλ)
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-zinc-400">Φερριτίνη (ng/mL)</label>
-            <input
-              type="number"
-              step="0.1"
-              value={biomarkers.ferritin ?? ''}
-              onChange={(e) =>
-                setBiomarkers({ ...biomarkers, ferritin: parseNullableNumber(e.target.value) })
-              }
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-            <span className="mt-0.5 block text-[10px] text-zinc-500">Κόφτης αν &lt; 30</span>
-          </div>
-
-          <div>
-            <label className="block text-xs text-zinc-400">Αιμοσφαιρίνη (g/dL)</label>
-            <input
-              type="number"
-              step="0.1"
-              value={biomarkers.hemoglobin ?? ''}
-              onChange={(e) =>
-                setBiomarkers({ ...biomarkers, hemoglobin: parseNullableNumber(e.target.value) })
-              }
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-            <span className="mt-0.5 block text-[10px] text-zinc-500">Κόφτης αν &lt; 12.5</span>
-          </div>
-
-          <div>
-            <label className="block text-xs text-zinc-400">Βιταμίνη D (ng/mL)</label>
-            <input
-              type="number"
-              step="0.1"
-              value={biomarkers.vitaminD ?? ''}
-              onChange={(e) =>
-                setBiomarkers({ ...biomarkers, vitaminD: parseNullableNumber(e.target.value) })
-              }
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-            <span className="mt-0.5 block text-[10px] text-zinc-500">Ειδοποίηση αν &lt; 25</span>
-          </div>
-
-          <div>
-            <label className="block text-xs text-zinc-400">Βιταμίνη B12 (pg/mL)</label>
-            <input
-              type="number"
-              step="1"
-              value={biomarkers.vitaminB12 ?? ''}
-              onChange={(e) =>
-                setBiomarkers({ ...biomarkers, vitaminB12: parseNullableNumber(e.target.value) })
-              }
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-            <span className="mt-0.5 block text-[10px] text-zinc-500">Ειδοποίηση αν &lt; 250</span>
-          </div>
-
-          <div>
-            <label className="block text-xs text-zinc-400">CRP Φλεγμονή (mg/L)</label>
-            <input
-              type="number"
-              step="0.1"
-              value={biomarkers.crp ?? ''}
-              onChange={(e) =>
-                setBiomarkers({ ...biomarkers, crp: parseNullableNumber(e.target.value) })
-              }
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-            <span className="mt-0.5 block text-[10px] text-zinc-500">Κόφτης αν &gt; 3.0</span>
-          </div>
-
-          <div>
-            <label className="block text-xs text-zinc-400">Γλυκόζη Νηστείας (mg/dL)</label>
-            <input
-              type="number"
-              step="1"
-              value={biomarkers.fastingGlucose ?? ''}
-              onChange={(e) =>
-                setBiomarkers({
-                  ...biomarkers,
-                  fastingGlucose: parseNullableNumber(e.target.value),
-                })
-              }
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs text-zinc-400">
-            Ιατρικοί Περιορισμοί / Ευαισθησίες Τενόντων & Επιπλέον Δείκτες
-          </label>
-          <input
-            type="text"
-            value={biomarkers.medicalRestrictions}
-            onChange={(e) =>
-              setBiomarkers({ ...biomarkers, medicalRestrictions: e.target.value })
-            }
-            placeholder="π.χ. Ιστορικό τενοντίτιδας Αχιλλείου, ευαισθησία μέσης..."
-            className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none"
-          />
-        </div>
-
-        <button
-          type="submit"
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/50 bg-emerald-500/15 py-3 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 active:scale-[0.99]"
-        >
-          <Activity className="h-4 w-4" />
-          Ενημέρωση Προφίλ Αιματολογικών
-        </button>
-      </form>
+      </div>
     </div>
   );
 }

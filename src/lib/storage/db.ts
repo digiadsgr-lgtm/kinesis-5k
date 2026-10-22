@@ -18,6 +18,26 @@ const DB_VERSION = 1;
 const SCHEMA_VERSION = '1.1.0';
 const PROFILES_STORAGE_KEY = 'kinesis_device_profiles_v1';
 const ACTIVE_PROFILE_KEY = 'kinesis_active_profile_id_v1';
+const SYNC_KEY_STORAGE = 'kinesis_personal_sync_key_v1';
+
+function triggerBackgroundCloudSync(): void {
+  if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
+  try {
+    const syncKey = window.localStorage.getItem(SYNC_KEY_STORAGE);
+    if (!syncKey) return;
+    getKinesisSnapshot()
+      .then((snapshot) =>
+        fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: syncKey, payload: snapshot }),
+        })
+      )
+      .catch(() => {});
+  } catch {
+    // Ignore background sync errors when offline
+  }
+}
 
 export interface LocalUserProfile {
   id: string;
@@ -256,11 +276,13 @@ export async function saveCheckIn(checkIn: CheckInInput): Promise<UserProgressio
     lastCheckIn: checkIn,
   };
   await setKv('progression', updated);
+  triggerBackgroundCloudSync();
   return updated;
 }
 
 export async function saveProgression(progression: UserProgressionState): Promise<void> {
   await setKv('progression', progression);
+  triggerBackgroundCloudSync();
 }
 
 export async function saveBiometrics(biometrics: DailyBiometrics): Promise<void> {
@@ -268,6 +290,7 @@ export async function saveBiometrics(biometrics: DailyBiometrics): Promise<void>
     ...biometrics,
     date: new Date().toISOString().slice(0, 10),
   });
+  triggerBackgroundCloudSync();
 }
 
 export async function saveBiomarkers(biomarkers: BiomarkerProfile): Promise<void> {
@@ -275,6 +298,7 @@ export async function saveBiomarkers(biomarkers: BiomarkerProfile): Promise<void
     ...biomarkers,
     updatedAt: new Date().toISOString().slice(0, 10),
   });
+  triggerBackgroundCloudSync();
 }
 
 export async function recordMovementLog(
@@ -300,6 +324,7 @@ export async function recordMovementLog(
   );
 
   await setKv('progression', updated);
+  triggerBackgroundCloudSync();
   return { log, progression: updated, stageAdvanced };
 }
 

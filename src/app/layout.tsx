@@ -52,11 +52,11 @@ export default function RootLayout({
       className={`dark ${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-zinc-950 font-sans text-zinc-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
-        <main className="mx-auto min-h-screen max-w-md px-4 pb-28 pt-4">
+        <Navigation />
+        <main className="mx-auto min-h-screen w-full max-w-6xl px-3 pb-28 pt-3 sm:px-6 md:pb-12 md:pt-20 lg:px-8">
           <InstallPwaPrompt />
           {children}
         </main>
-        <Navigation />
       </body>
     </html>
   );
