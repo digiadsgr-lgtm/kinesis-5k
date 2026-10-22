@@ -39,6 +39,7 @@ import {
 } from '@/lib/parser/pdfBiomarkerExtractor';
 import { SmartwatchSyncResult } from '@/lib/parser/smartwatchParser';
 import SmartwatchSyncHub from '@/components/SmartwatchSyncHub';
+import { getPersonalSyncKey, pushProgressToCloud } from '@/lib/storage/cloudSync';
 
 export default function HealthBiomarkersHub() {
   const [biometrics, setBiometrics] = useState<DailyBiometrics>(DEFAULT_BIOMETRICS);
@@ -101,6 +102,7 @@ export default function HealthBiomarkersHub() {
         wasNegotiated: 'primary',
       });
     }
+    await pushProgressToCloud(getPersonalSyncKey());
   };
 
   const mergeAndSavePdfResults = async (newResults: PdfExtractionResult[]) => {
@@ -140,13 +142,15 @@ export default function HealthBiomarkersHub() {
 
     setBiomarkers(nextBiomarkers);
     await saveBiomarkers(nextBiomarkers);
+    const activeKey = getPersonalSyncKey();
+    await pushProgressToCloud(activeKey);
 
     const totalDetectedCount = validResults.reduce(
       (acc, r) => acc + r.detectedItems.length,
       0
     );
     setSavedNotice(
-      `Αναλύθηκαν ${validResults.length} αρχεία PDF (${totalDetectedCount} δείκτες) και συγχωνεύτηκαν αυτόματα στο προφίλ σου!`
+      `Αναλύθηκαν ${validResults.length} αρχεία PDF (${totalDetectedCount} δείκτες), ενημέρωσαν την πρόταση άσκησης & διατροφής και συγχρονίστηκαν αυτόματα στο Cloud (${activeKey}) για το Κινητό & τον Υπολογιστή σου!`
     );
   };
 
@@ -228,13 +232,21 @@ export default function HealthBiomarkersHub() {
   const handleSaveBiometrics = async (e: React.FormEvent) => {
     e.preventDefault();
     await saveBiometrics(biometrics);
-    setSavedNotice('Τα ημερήσια βιομετρικά αποθηκεύτηκαν και ενημέρωσαν το Safety Gate.');
+    const activeKey = getPersonalSyncKey();
+    await pushProgressToCloud(activeKey);
+    setSavedNotice(
+      `Τα ημερήσια βιομετρικά αποθηκεύτηκαν, ενημέρωσαν το Safety Gate και συγχρονίστηκαν στο Cloud (${activeKey}).`
+    );
   };
 
   const handleSaveBiomarkers = async (e: React.FormEvent) => {
     e.preventDefault();
     await saveBiomarkers(biomarkers);
-    setSavedNotice('Οι αιματολογικοί δείκτες αποθηκεύτηκαν τοπικά στη συσκευή σου.');
+    const activeKey = getPersonalSyncKey();
+    await pushProgressToCloud(activeKey);
+    setSavedNotice(
+      `Οι αιματολογικοί δείκτες αποθηκεύτηκαν και συγχρονίστηκαν στο Cloud (${activeKey}) για όλες τις συσκευές σου.`
+    );
   };
 
   const parseNullableNumber = (val: string): number | null => {

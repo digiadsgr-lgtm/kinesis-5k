@@ -25,8 +25,10 @@ import {
   BiomarkerProfile,
   CheckInInput,
   DailyBiometrics,
+  KinesisDatabaseDump,
   UserProgressionState,
 } from '@/types/kinesis';
+import { mergeKinesisSnapshots } from '@/lib/storage/cloudSync';
 
 const healthyBiometrics: DailyBiometrics = {
   rhr: 58,
@@ -396,6 +398,134 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       );
       expect(machine.machineScore).toBeGreaterThan(40);
       expect(machine.phaseTitleGreek).toContain('Φάση');
+    });
+
+    it('merges Mobile and PC snapshots without losing uploaded PDFs, biomarkers, workouts, smartwatch syncs, or diet plans', () => {
+      const pcSnapshot: KinesisDatabaseDump = {
+        schemaVersion: '1.1.0',
+        exportedAt: '2026-10-23T00:00:00.000Z',
+        progression: {
+          id: 'singleton',
+          currentStage: 1,
+          habitConsistencyScore: 48,
+          runningReadiness: 22,
+          totalSessionsCompleted: 4,
+          lastActiveDate: '2026-10-22T18:00:00.000Z',
+          lastCheckIn: highReadinessCheckIn,
+        },
+        biometrics: healthyBiometrics,
+        biomarkers: {
+          ferritin: null,
+          hemoglobin: null,
+          vitaminD: null,
+          vitaminB12: null,
+          crp: null,
+          fastingGlucose: null,
+          medicalRestrictions: '',
+        },
+        logs: [
+          {
+            id: 'pc-log-1',
+            timestamp: '2026-10-22T18:00:00.000Z',
+            title: '10 Λεπτά Περπάτημα',
+            modality: 'walk',
+            durationMins: 10,
+            intensityLabel: 'Ήπια',
+            habitPointsEarned: 15,
+            structuralPointsEarned: 5,
+            rpe: 3,
+            notes: 'PC session',
+            wasNegotiated: 'primary',
+          },
+        ],
+        rejections: [],
+        pdfHistory: [],
+        smartwatchHistory: [],
+        uploadedDietPlan: createSampleBalancedDietPlan(),
+      };
+
+      const mobileSnapshotWithUploadedPdf: KinesisDatabaseDump = {
+        schemaVersion: '1.1.0',
+        exportedAt: '2026-10-23T01:00:00.000Z',
+        progression: {
+          id: 'singleton',
+          currentStage: 0,
+          habitConsistencyScore: 15,
+          runningReadiness: 5,
+          totalSessionsCompleted: 1,
+          lastActiveDate: '2026-10-23T00:50:00.000Z',
+          lastCheckIn: highReadinessCheckIn,
+        },
+        biometrics: { ...healthyBiometrics, stepsSoFar: 6400 },
+        biomarkers: {
+          ferritin: 21.5,
+          hemoglobin: 13.4,
+          vitaminD: 22.8,
+          vitaminB12: 340,
+          crp: 1.4,
+          fastingGlucose: 94,
+          medicalRestrictions: 'Χοληστερόλη: 192 mg/dL',
+        },
+        logs: [
+          {
+            id: 'mobile-log-1',
+            timestamp: '2026-10-23T00:50:00.000Z',
+            title: '5 Λεπτά Ξεμπλοκάρισμα Σπιτιού',
+            modality: 'mobility',
+            durationMins: 5,
+            intensityLabel: 'Πολύ Ήπια',
+            habitPointsEarned: 15,
+            structuralPointsEarned: 3,
+            rpe: 2,
+            notes: 'Mobile session',
+            wasNegotiated: 'primary',
+          },
+        ],
+        rejections: [],
+        pdfHistory: [
+          {
+            id: 'pdf-mobile-1',
+            fileName: 'Αιματολογικές_Κινητού.pdf',
+            uploadedAt: '2026-10-23T00:55:00.000Z',
+            rawSnippet: 'Φερριτίνη 21.5',
+            detectedItems: [
+              {
+                key: 'ferritin',
+                labelGreek: 'Φερριτίνη (Ferritin)',
+                value: 21.5,
+                unit: 'ng/mL',
+                status: 'low',
+                matchedSnippet: 'Φερριτίνη: 21.5',
+              },
+            ],
+            extraFindingsGreek: ['Χοληστερόλη: 192 mg/dL'],
+            updatedProfile: { ferritin: 21.5, hemoglobin: 13.4, vitaminD: 22.8 },
+          },
+        ],
+        smartwatchHistory: [
+          {
+            id: 'watch-mobile-1',
+            sourceName: 'Garmin Mobile Sync',
+            syncedAt: '2026-10-23T00:58:00.000Z',
+            biometricsUpdate: { stepsSoFar: 6400 },
+            summaryGreek: ['Βήματα: 6400'],
+          },
+        ],
+        uploadedDietPlan: null,
+      };
+
+      const merged = mergeKinesisSnapshots(pcSnapshot, mobileSnapshotWithUploadedPdf);
+
+      // Preserves Mobile's uploaded PDF & biomarkers AND PC's higher stage, logs, and diet plan!
+      expect(merged.pdfHistory?.length).toBe(1);
+      expect(merged.pdfHistory?.[0].fileName).toBe('Αιματολογικές_Κινητού.pdf');
+      expect(merged.biomarkers.ferritin).toBe(21.5);
+      expect(merged.biomarkers.hemoglobin).toBe(13.4);
+      expect(merged.biomarkers.vitaminD).toBe(22.8);
+      expect(merged.progression.currentStage).toBe(1);
+      expect(merged.logs.length).toBe(2);
+      expect(merged.smartwatchHistory?.length).toBe(1);
+      expect(merged.uploadedDietPlan).not.toBeNull();
     });
   });
 });

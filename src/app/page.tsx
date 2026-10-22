@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertTriangle,
   Battery,
@@ -8,18 +9,23 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Droplets,
   Dumbbell,
   Footprints,
   Home,
+  Laptop,
   ListChecks,
   Play,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
   Shirt,
   Smile,
   Sparkles,
   Target,
   TrendingDown,
+  Utensils,
+  Watch,
   Zap,
 } from 'lucide-react';
 import {
@@ -45,7 +51,9 @@ import {
   HomeWorkoutProtocol,
 } from '@/lib/engine/homeWorkouts';
 import {
+  calculateAthleticMachineProgress,
   DEFAULT_TRANSFORMATION_GOAL,
+  getDailyNutritionAndMotivation,
   PersonalTransformationGoal,
   UploadedDietPlan,
 } from '@/lib/engine/nutritionAndMotivation';
@@ -63,6 +71,14 @@ import {
   saveTransformationGoal,
   saveUploadedDietPlan,
 } from '@/lib/storage/db';
+import {
+  getPersonalSyncKey,
+  pairAndMergeWithDevice,
+  pullProgressFromCloud,
+  pushProgressToCloud,
+} from '@/lib/storage/cloudSync';
+import { PdfExtractionResult } from '@/lib/parser/pdfBiomarkerExtractor';
+import { SmartwatchSyncResult } from '@/lib/parser/smartwatchParser';
 import SessionTimer, { ActiveTimerSession } from '@/components/SessionTimer';
 import GoalAndNutritionHub from '@/components/GoalAndNutritionHub';
 
@@ -93,6 +109,16 @@ export default function TodayCommandCenter() {
   const [checkIn, setCheckIn] = useState<CheckInInput>(DEFAULT_CHECK_IN);
   const [goal, setGoal] = useState<PersonalTransformationGoal>(DEFAULT_TRANSFORMATION_GOAL);
   const [dietPlan, setDietPlan] = useState<UploadedDietPlan | null>(null);
+  const [pdfHistory, setPdfHistory] = useState<PdfExtractionResult[]>([]);
+  const [watchHistory, setWatchHistory] = useState<SmartwatchSyncResult[]>([]);
+  const [syncKey, setSyncKey] = useState<string>('');
+  const [quickPairInput, setQuickPairInput] = useState<string>('');
+  const [isCheckingEcosystem, setIsCheckingEcosystem] = useState<boolean>(false);
+  const [ecosystemReport, setEcosystemReport] = useState<{
+    type: 'success' | 'error';
+    title: string;
+    bullets: string[];
+  } | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   const [overridePrescription, setOverridePrescription] = useState<{
@@ -124,6 +150,9 @@ export default function TodayCommandCenter() {
     setRejections(snap.rejections);
     setGoal(loadedGoal);
     setDietPlan(loadedDiet);
+    setPdfHistory((snap.pdfHistory as PdfExtractionResult[] | undefined) ?? []);
+    setWatchHistory((snap.smartwatchHistory as SmartwatchSyncResult[] | undefined) ?? []);
+    setSyncKey(getPersonalSyncKey());
     if (snap.progression.lastCheckIn) {
       setCheckIn(snap.progression.lastCheckIn);
     }
@@ -314,6 +343,123 @@ export default function TodayCommandCenter() {
 
   const currentStageDef = STAGES[progression.currentStage];
 
+  const machineStatus = useMemo(
+    () => calculateAthleticMachineProgress(progression, biometrics, logs, goal),
+    [progression, biometrics, logs, goal]
+  );
+
+  const dailyNutrition = useMemo(
+    () =>
+      getDailyNutritionAndMotivation(
+        progression.currentStage,
+        checkIn,
+        biometrics,
+        biomarkers,
+        0
+      ),
+    [progression.currentStage, checkIn, biometrics, biomarkers]
+  );
+
+  const handleRunEcosystemCheck = async () => {
+    setIsCheckingEcosystem(true);
+    setEcosystemReport(null);
+    const activeKey = getPersonalSyncKey();
+    setSyncKey(activeKey);
+
+    try {
+      const pullRes = await pullProgressFromCloud(activeKey, { forceMerge: true });
+      const pushRes = await pushProgressToCloud(activeKey);
+      await loadData();
+      const freshSnap = await getKinesisSnapshot();
+
+      const pdfCount = freshSnap.pdfHistory?.length ?? 0;
+      const watchCount = freshSnap.smartwatchHistory?.length ?? 0;
+      const logsCount = freshSnap.logs?.length ?? 0;
+      const recNow = calculateRecommendation(
+        freshSnap.progression.lastCheckIn ?? checkIn,
+        freshSnap.progression.currentStage,
+        freshSnap.biometrics,
+        freshSnap.biomarkers,
+        freshSnap.rejections
+      );
+
+      setIsCheckingEcosystem(false);
+      if (pushRes.ok) {
+        setEcosystemReport({
+          type: 'success',
+          title: `Όλα τα υποσυστήματα επικοινωνούν κανονικά (Κωδικός Συγχρονισμού: ${activeKey})!`,
+          bullets: [
+            `1. Γέφυρα Κινητού ↔ Υπολογιστή: Ενεργή στον κωδικό ${activeKey} (${pullRes.found ? 'Ενώθηκαν αυτόματα τα δεδομένα Κινητού & PC' : 'Το πλήρες αντίγραφο ανέβηκε στο Cloud και είναι έτοιμο για την άλλη συσκευή'}).`,
+            `2. Αιματολογικές Εξετάσεις (PDF) → Μηχανή & Διατροφή: ${pdfCount} αρχεία PDF ενεργά (Φερριτίνη: ${freshSnap.biomarkers.ferritin ?? '—'} ng/mL, Αιμοσφαιρίνη: ${freshSnap.biomarkers.hemoglobin ?? '—'} g/dL, Βιταμίνη D: ${freshSnap.biomarkers.vitaminD ?? '—'} ng/mL).`,
+            `3. Smartwatch & Βιομετρικά → Safety Gate: Ύπνος ${freshSnap.biometrics.sleepScore}/100, Παλμοί Ηρεμίας ${freshSnap.biometrics.rhr} bpm, Βήματα ${freshSnap.biometrics.stepsSoFar} (${watchCount} συγχρονισμοί ρολογιού).`,
+            `4. Σημερινό Αποτέλεσμα Ένωσης: Η πρόταση προσαρμόστηκε σε «${recNow.title}» (${recNow.durationMins}') + Διατροφικό Tip «${dailyNutrition.nutritionTitleGreek}» (${logsCount} συνολικές προπονήσεις).`,
+          ],
+        });
+      } else {
+        setEcosystemReport({
+          type: 'error',
+          title: 'Προσοχή στη σύνδεση Cloud',
+          bullets: [
+            pushRes.error || 'Δεν ολοκληρώθηκε η αποστολή στο Cloud. Δοκίμασε ξανά σε λίγο.',
+          ],
+        });
+      }
+    } catch {
+      setIsCheckingEcosystem(false);
+      setEcosystemReport({
+        type: 'error',
+        title: 'Σφάλμα κατά τον διαγνωστικό έλεγχο',
+        bullets: ['Δοκίμασε ξανά το κουμπί «Έλεγχος Διασύνδεσης & Συγχρονισμός».'],
+      });
+    }
+  };
+
+  const handleQuickPairWithOtherDevice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const target = quickPairInput.trim().toUpperCase();
+    if (!target) return;
+
+    const currentKey = getPersonalSyncKey();
+    if (target === currentKey) {
+      setEcosystemReport({
+        type: 'error',
+        title: `Ο κωδικός ${target} είναι ήδη ο κωδικός ΑΥΤΗΣ της συσκευής!`,
+        bullets: [
+          `Δεν χρειάζεται να κάνεις σύζευξη της συσκευής με τον εαυτό της.`,
+          `Κοίτα πάνω δεξιά στην ΑΛΛΗ σου συσκευή (στο Κινητό ή στον Υπολογιστή) και γράψε εδώ τον κωδικό που δείχνει εκείνη — ή γράψε τον κωδικό ${currentKey} στην άλλη συσκευή!`,
+        ],
+      });
+      return;
+    }
+
+    setIsCheckingEcosystem(true);
+    setEcosystemReport(null);
+    const res = await pairAndMergeWithDevice(target);
+    await loadData();
+    setIsCheckingEcosystem(false);
+
+    if (res.ok) {
+      setSyncKey(res.key);
+      setQuickPairInput('');
+      window.dispatchEvent(new Event('kinesis-sync-restored'));
+      setEcosystemReport({
+        type: 'success',
+        title: res.messageGreek,
+        bullets: [
+          `Κοινός Κωδικός Κινητού & Υπολογιστή: ${res.key}`,
+          `Αιματολογικές (PDF) που ενώθηκαν: ${res.summary?.pdfCount ?? 0} αρχεία`,
+          `Προπονήσεις που ενώθηκαν: ${res.summary?.logsCount ?? 0} • Συγχρονισμοί Smartwatch: ${res.summary?.watchSyncsCount ?? 0}`,
+        ],
+      });
+    } else {
+      setEcosystemReport({
+        type: 'error',
+        title: 'Αδυναμία σύζευξης',
+        bullets: [res.messageGreek],
+      });
+    }
+  };
+
   const filteredHomeWorkouts = useMemo(() => {
     if (selectedHomeCategory === 'all') return HOME_WORKOUT_PROTOCOLS;
     return HOME_WORKOUT_PROTOCOLS.filter((p) => p.category === selectedHomeCategory);
@@ -333,6 +479,186 @@ export default function TodayCommandCenter() {
           </div>
         </div>
       )}
+
+      {/* UNIFIED ECOSYSTEM & LIVE INTERCONNECTIVITY BAR (Binds PDF + Smartwatch + Diet/Goal + Mobile<->PC) */}
+      <section
+        aria-label="Ζωντανή Διασύνδεση Οικοσυστήματος KINESIS"
+        className="rounded-2xl border border-emerald-500/35 bg-zinc-900/95 p-4 shadow-lg"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-emerald-400">
+              <ShieldCheck className="h-4 w-4" />
+              <span>Ζωντανή Διασύνδεση Συστήματος (Οικοσύστημα KINESIS)</span>
+            </div>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Αιματολογικές (PDF), Smartwatch, Διατροφή & Κινητό ↔ Υπολογιστής τροφοδοτούν μαζί τη
+              σημερινή σου άσκηση.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              disabled={isCheckingEcosystem}
+              onClick={handleRunEcosystemCheck}
+              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-zinc-950 shadow-sm transition active:scale-95 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isCheckingEcosystem ? 'animate-spin' : ''}`} />
+              <span>
+                {isCheckingEcosystem
+                  ? 'Έλεγχος & Συγχρονισμός...'
+                  : 'Άμεσος Έλεγχος Διασύνδεσης & Sync'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Interconnected Pillars Grid */}
+        <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Pillar 1: Blood Test PDFs */}
+          <Link
+            href="/health"
+            className="group flex flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-950 p-3 transition hover:border-emerald-500/40"
+          >
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-zinc-100">
+                <Droplets className="h-3.5 w-3.5 text-emerald-400" />
+                1. Αιματολογικές (PDF)
+              </span>
+              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                {pdfHistory.length} PDF
+              </span>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-300">
+              Φερριτίνη: <strong>{biomarkers.ferritin ?? '—'}</strong> ng/mL • Hb:{' '}
+              <strong>{biomarkers.hemoglobin ?? '—'}</strong> • Vit D:{' '}
+              <strong>{biomarkers.vitaminD ?? '—'}</strong>
+            </p>
+            <span className="mt-1.5 text-[10px] font-semibold text-emerald-400 group-hover:underline">
+              {biomarkers.ferritin !== null && biomarkers.ferritin < 30
+                ? '⚡ Ενεργή προστασία κόπωσης στην άσκηση →'
+                : '✓ Τροφοδοτεί άσκηση & διατροφή →'}
+            </span>
+          </Link>
+
+          {/* Pillar 2: Smartwatch & Biometrics */}
+          <Link
+            href="/health"
+            className="group flex flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-950 p-3 transition hover:border-emerald-500/40"
+          >
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-zinc-100">
+                <Watch className="h-3.5 w-3.5 text-emerald-400" />
+                2. Smartwatch & Ύπνος
+              </span>
+              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                {watchHistory.length > 0 ? `${watchHistory.length} Syncs` : 'Ενεργό'}
+              </span>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-300">
+              Ύπνος: <strong>{biometrics.sleepScore}/100</strong> • RHR:{' '}
+              <strong>{biometrics.rhr} bpm</strong> • Βήματα:{' '}
+              <strong>{biometrics.stepsSoFar}</strong>
+            </p>
+            <span className="mt-1.5 text-[10px] font-semibold text-emerald-400 group-hover:underline">
+              ✓ Ρυθμίζει αυτόματα την ένταση σήμερα →
+            </span>
+          </Link>
+
+          {/* Pillar 3: Nutrition Tip & Diet Plan */}
+          <a
+            href="#goal-nutrition-section"
+            className="group flex flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-950 p-3 transition hover:border-emerald-500/40"
+          >
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-zinc-100">
+                <Utensils className="h-3.5 w-3.5 text-emerald-400" />
+                3. Στόχος & Διατροφή
+              </span>
+              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                {machineStatus.machineScore}% Μηχανή
+              </span>
+            </div>
+            <p className="mt-1.5 line-clamp-1 text-[11px] text-zinc-300">
+              {dietPlan
+                ? `Πλάνο: ${dietPlan.fileName} (${dietPlan.meals.length} γεύματα)`
+                : `Tip: ${dailyNutrition.nutritionTitleGreek}`}
+            </p>
+            <span className="mt-1.5 text-[10px] font-semibold text-emerald-400 group-hover:underline">
+              ✓ Δες το σημερινό Tip & τον στόχο σου ↓
+            </span>
+          </a>
+
+          {/* Pillar 4: Mobile <-> PC Pairing (No Self-Pairing!) */}
+          <div className="flex flex-col justify-between rounded-xl border border-emerald-500/35 bg-zinc-950 p-3">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-zinc-100">
+                <Laptop className="h-3.5 w-3.5 text-emerald-400" />
+                4. Κινητό ↔ PC
+              </span>
+              <span className="font-mono text-[11px] font-extrabold text-emerald-400">
+                {syncKey || '...'}
+              </span>
+            </div>
+            <form onSubmit={handleQuickPairWithOtherDevice} className="mt-1.5 flex gap-1">
+              <input
+                type="text"
+                value={quickPairInput}
+                onChange={(e) => setQuickPairInput(e.target.value.toUpperCase())}
+                placeholder="Κωδικός ΑΛΛΗΣ συσκευής"
+                className="w-full min-w-0 rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1 font-mono text-[11px] font-bold text-emerald-400 placeholder:font-sans placeholder:text-[10px] placeholder:font-normal placeholder:text-zinc-500 focus:border-emerald-500 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={isCheckingEcosystem}
+                className="shrink-0 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-extrabold text-zinc-950 hover:opacity-95"
+              >
+                Ένωση
+              </button>
+            </form>
+            <span className="mt-1 text-[10px] text-zinc-400">
+              Γράψε τον κωδικό της άλλης συσκευής για ένωση PDF & προόδου.
+            </span>
+          </div>
+        </div>
+
+        {/* Live Ecosystem Diagnostic Report */}
+        {ecosystemReport && (
+          <div
+            className={`mt-3 rounded-xl border p-3.5 text-xs ${
+              ecosystemReport.type === 'success'
+                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
+                : 'border-amber-500/40 bg-amber-500/10 text-amber-100'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 font-bold">
+                {ecosystemReport.type === 'success' ? (
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+                )}
+                <span>{ecosystemReport.title}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEcosystemReport(null)}
+                className="text-[11px] text-zinc-400 hover:text-zinc-100"
+              >
+                Κλείσιμο
+              </button>
+            </div>
+            <ul className="mt-2 space-y-1 pl-6 text-[11px] leading-relaxed text-zinc-200">
+              {ecosystemReport.bullets.map((b, idx) => (
+                <li key={idx} className="list-disc">
+                  {b}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
 
       {/* Safety Gate & Biomarker Alerts */}
       {recommendation.safetyAlertsGreek.length > 0 && (

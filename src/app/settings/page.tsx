@@ -14,6 +14,7 @@ import {
   RefreshCw,
   RotateCcw,
   Settings,
+  ShieldCheck,
   Sparkles,
   Upload,
   UserPlus,
@@ -25,6 +26,7 @@ import {
   exportDatabaseJson,
   getActiveProfile,
   getDeviceProfiles,
+  getKinesisSnapshot,
   importDatabaseJson,
   LocalUserProfile,
   resetAllData,
@@ -34,9 +36,9 @@ import {
 import {
   createCrossDeviceSyncLink,
   getPersonalSyncKey,
+  pairAndMergeWithDevice,
   pullProgressFromCloud,
   pushProgressToCloud,
-  setPersonalSyncKey,
 } from '@/lib/storage/cloudSync';
 
 export default function SettingsAndBackupPage() {
@@ -49,6 +51,7 @@ export default function SettingsAndBackupPage() {
   const [activeProfile, setActiveProfile] = useState<LocalUserProfile>(DEFAULT_PROFILE);
   const [newProfileName, setNewProfileName] = useState<string>('');
   const [syncKey, setSyncKey] = useState<string>('');
+  const [partnerSyncKey, setPartnerSyncKey] = useState<string>('');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -56,6 +59,11 @@ export default function SettingsAndBackupPage() {
     setProfiles(getDeviceProfiles());
     setActiveProfile(getActiveProfile());
     setSyncKey(getPersonalSyncKey());
+    const onRestored = () => {
+      setSyncKey(getPersonalSyncKey());
+    };
+    window.addEventListener('kinesis-sync-restored', onRestored);
+    return () => window.removeEventListener('kinesis-sync-restored', onRestored);
   }, []);
 
   const handleCreateProfile = (e: React.FormEvent) => {
@@ -80,45 +88,68 @@ export default function SettingsAndBackupPage() {
     });
   };
 
-  const handlePushCloud = async () => {
+  const handlePairDevices = async () => {
+    const trimmed = partnerSyncKey.trim().toUpperCase();
+    if (!trimmed) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Γράψε πρώτα τον κωδικό που βλέπεις στην ΑΛΛΗ σου συσκευή (Κινητό ή Υπολογιστή).',
+      });
+      return;
+    }
+
+    const currentKey = getPersonalSyncKey();
     setIsSyncing(true);
-    const cleaned = setPersonalSyncKey(syncKey);
-    setSyncKey(cleaned);
-    const res = await pushProgressToCloud(cleaned);
+
+    if (trimmed === currentKey) {
+      await pushProgressToCloud(currentKey);
+      await pullProgressFromCloud(currentKey, { forceMerge: true });
+      setIsSyncing(false);
+      window.dispatchEvent(new Event('kinesis-sync-restored'));
+      setStatusMessage({
+        type: 'error',
+        text: `Ο κωδικός ${trimmed} είναι ήδη ο κωδικός ΑΥΤΗΣ της συσκευής! Για να συνδέσεις Κινητό με Υπολογιστή, γράψε εδώ τον κωδικό που δείχνει η ΑΛΛΗ συσκευή σου (ή γράψε τον κωδικό ${currentKey} στην άλλη συσκευή).`,
+      });
+      return;
+    }
+
+    const res = await pairAndMergeWithDevice(trimmed);
     setIsSyncing(false);
 
     if (res.ok) {
+      setSyncKey(res.key);
+      setPartnerSyncKey('');
+      window.dispatchEvent(new Event('kinesis-sync-restored'));
       setStatusMessage({
         type: 'success',
-        text: `Η πρόοδός σου αποθηκεύτηκε με τον κωδικό ${cleaned}! Άνοιξε το KINESIS στον υπολογιστή ή στο κινητό σου και πάτησε «Φόρτωση με Κωδικό».`,
+        text: res.messageGreek,
       });
     } else {
       setStatusMessage({
         type: 'error',
-        text: res.error || 'Σφάλμα σύνδεσης. Χρησιμοποίησε το Προσωπικό Magic Link.',
+        text: res.messageGreek,
       });
     }
   };
 
-  const handlePullCloud = async () => {
+  const handleFullSyncNow = async () => {
     setIsSyncing(true);
-    const cleaned = setPersonalSyncKey(syncKey);
-    setSyncKey(cleaned);
-    const res = await pullProgressFromCloud(cleaned);
+    const currentKey = getPersonalSyncKey();
+    await pullProgressFromCloud(currentKey, { forceMerge: true });
+    const pushRes = await pushProgressToCloud(currentKey);
+    const snap = await getKinesisSnapshot();
     setIsSyncing(false);
+    window.dispatchEvent(new Event('kinesis-sync-restored'));
 
-    if (res.ok && res.found) {
-      window.dispatchEvent(new Event('kinesis-sync-restored'));
+    if (pushRes.ok) {
       setStatusMessage({
         type: 'success',
-        text: `Η πρόοδος από τον κωδικό ${cleaned} φορτώθηκε επιτυχώς σε αυτή τη συσκευή!`,
+        text: `Πλήρης συγχρονισμός & έλεγχος διασύνδεσης ολοκληρώθηκε στον κωδικό ${currentKey}! Συγχρονίστηκαν: ${snap.pdfHistory?.length ?? 0} αρχεία PDF αιματολογικών, ${snap.logs.length} προπονήσεις, ${snap.smartwatchHistory?.length ?? 0} συγχρονισμοί Smartwatch & το πλάνο διατροφής σου.`,
       });
     } else {
       setStatusMessage({
         type: 'error',
-        text:
-          res.error ||
-          'Δεν βρέθηκαν δεδομένα για αυτόν τον κωδικό. Πάτησε πρώτα «Αποθήκευση» από την άλλη σου συσκευή.',
+        text: pushRes.error || 'Σφάλμα επικοινωνίας με το Cloud.',
       });
     }
   };
@@ -130,7 +161,7 @@ export default function SettingsAndBackupPage() {
       await navigator.clipboard.writeText(link);
       setStatusMessage({
         type: 'success',
-        text: 'Το Προσωπικό Magic Link αντιγράφηκε! Στείλ’ το στον εαυτό σου και άνοιξέ το στον υπολογιστή ή στο κινητό σου για αυτόματη μεταφορά προόδου.',
+        text: 'Το Προσωπικό Magic Link αντιγράφηκε! Στείλ’ το στον εαυτό σου και άνοιξέ το στον υπολογιστή ή στο κινητό σου για αυτόματη ένωση προόδου & PDF.',
       });
     } catch {
       setStatusMessage({
@@ -157,7 +188,7 @@ export default function SettingsAndBackupPage() {
 
       setStatusMessage({
         type: 'success',
-        text: 'Το αντίγραφο ασφαλείας JSON εξήχθη με επιτυχία.',
+        text: 'Το πλήρες αντίγραφο ασφαλείας JSON (μαζί με PDF αιματολογικών, Smartwatch & Διατροφή) εξήχθη με επιτυχία.',
       });
     } catch (err) {
       setStatusMessage({
@@ -240,12 +271,12 @@ export default function SettingsAndBackupPage() {
         <div className="flex items-center gap-2 text-emerald-400">
           <Settings className="h-5 w-5" />
           <h1 className="text-lg font-bold text-zinc-50">
-            Ρυθμίσεις, Συγχρονισμός Κινητού ↔ PC & Ιδιωτικότητα
+            Ρυθμίσεις, Σύζευξη Κινητού ↔ PC & Ιδιωτικότητα
           </h1>
         </div>
         <p className="mt-1 text-xs text-zinc-400">
-          Συνέχισε την πρόοδό σου ανάμεσα στο κινητό και στον υπολογιστή σου, κρατώντας τα δεδομένα
-          σου 100% ιδιωτικά.
+          Ένωσε το κινητό με τον υπολογιστή σου ώστε οι Αιματολογικές (PDF), το Smartwatch, η
+          Διατροφή και οι Προπονήσεις να ενημερώνονται αυτόματα και στις δύο συσκευές.
         </p>
       </header>
 
@@ -275,63 +306,64 @@ export default function SettingsAndBackupPage() {
             <div className="flex items-center gap-2 text-emerald-400">
               <Laptop className="h-5 w-5" />
               <h2 className="text-sm font-bold text-zinc-100 sm:text-base">
-                Συγχρονισμός Κινητού & Υπολογιστή (Χωρίς Απώλεια Προόδου)
+                Σύζευξη Κινητού ↔ Υπολογιστή (Αυτόματη Ένωση PDF, Smartwatch & Προόδου)
               </h2>
             </div>
 
-            <p className="text-xs leading-relaxed text-zinc-300">
-              Θέλεις να ανοίγεις το KINESIS στο κινητό σου και μετά στον υπολογιστή σου έχοντας
-              ακριβώς την ίδια πρόοδο; Χρησιμοποίησε το <strong>Προσωπικό Magic Link</strong> ή τον{' '}
-              <strong>Κωδικό Συγχρονισμού</strong> σου:
-            </p>
-
-            <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-zinc-950 p-3.5">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
-                <Link2 className="h-4 w-4" />
-                <span>1-Κλικ Magic Link (Κινητό ↔ Υπολογιστής)</span>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-[11px] font-bold uppercase text-zinc-400">
+                    Κωδικός αυτής της συσκευής:
+                  </span>
+                  <div className="font-mono text-base font-extrabold text-emerald-400">
+                    {syncKey}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyMagicLink}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-zinc-950 shadow-sm"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  Αντιγραφή Magic Link
+                </button>
               </div>
-              <p className="text-[11px] text-zinc-400">
-                Στείλε αυτό το link στον εαυτό σου και πάτησέ το στην άλλη σου συσκευή:
-              </p>
-              <button
-                type="button"
-                onClick={handleCopyMagicLink}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-2.5 text-xs font-bold text-zinc-950 shadow-md shadow-emerald-500/20"
-              >
-                <Copy className="h-4 w-4" />
-                Αντιγραφή Προσωπικού Magic Link
-              </button>
             </div>
 
-            <div className="space-y-2.5 rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
-              <label className="block text-xs font-bold text-zinc-200">
-                Προσωπικός Κωδικός Συγχρονισμού (Sync Code):
+            <div className="space-y-2.5 rounded-xl border-2 border-emerald-500/35 bg-zinc-950 p-3.5">
+              <label className="block text-xs font-bold text-emerald-400">
+                Σύζευξη με την Άλλη σου Συσκευή (Γράψε τον κωδικό που δείχνει η άλλη συσκευή):
               </label>
+              <p className="text-[11px] text-zinc-400">
+                Μην γράψεις τον κωδικό αυτής της συσκευής ({syncKey}). Γράψε τον κωδικό που βλέπεις
+                πάνω δεξιά στην άλλη σου συσκευή (π.χ. στον Υπολογιστή ή στο Κινητό):
+              </p>
               <input
                 type="text"
-                value={syncKey}
-                onChange={(e) => setSyncKey(e.target.value.toUpperCase())}
-                placeholder="π.χ. KIN-ABCD-123"
-                className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-center font-mono text-sm font-bold tracking-wider text-emerald-300 focus:border-emerald-500 focus:outline-none"
+                value={partnerSyncKey}
+                onChange={(e) => setPartnerSyncKey(e.target.value.toUpperCase())}
+                placeholder="Γράψε τον κωδικό της ΑΛΛΗΣ συσκευής (π.χ. KIN-ABCD-123)"
+                className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-center font-mono text-sm font-bold tracking-wider text-emerald-300 placeholder:font-sans placeholder:text-xs placeholder:font-normal placeholder:text-zinc-500 focus:border-emerald-500 focus:outline-none"
               />
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   disabled={isSyncing}
-                  onClick={handlePushCloud}
-                  className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 py-2.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
+                  onClick={handlePairDevices}
+                  className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 py-2.5 text-xs font-extrabold text-zinc-950 shadow-md shadow-emerald-500/20"
                 >
                   <CloudUpload className="h-4 w-4" />
-                  Αποθήκευση από εδώ
+                  Σύζευξη & Ένωση Δεδομένων
                 </button>
                 <button
                   type="button"
                   disabled={isSyncing}
-                  onClick={handlePullCloud}
-                  className="flex items-center justify-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 text-xs font-bold text-zinc-100 hover:bg-zinc-700"
+                  onClick={handleFullSyncNow}
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 py-2.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
                 >
-                  <RefreshCw className="h-4 w-4 text-emerald-400" />
-                  Φόρτωση με Κωδικό
+                  <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                  Έλεγχος & Συγχρονισμός Τώρα
                 </button>
               </div>
             </div>

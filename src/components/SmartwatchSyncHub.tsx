@@ -376,7 +376,9 @@ export default function SmartwatchSyncHub({
           className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-emerald-500/50 bg-emerald-500/15 px-3 py-2.5 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/25 active:scale-95"
         >
           <Bluetooth className="h-4 w-4" />
-          {isConnectingBle ? 'Αναζήτηση Bluetooth...' : '1. Σύνδεση Bluetooth (Live HR)'}
+          {isConnectingBle
+            ? 'Αναζήτηση Αισθητήρα Παλμών...'
+            : '1. Bluetooth Παλμοί Ρολογιού (BLE HR)'}
         </button>
 
         <label className="flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 py-2.5 text-xs font-bold text-zinc-950 shadow-md shadow-emerald-500/20 transition active:scale-95">
@@ -390,6 +392,21 @@ export default function SmartwatchSyncHub({
             className="hidden"
           />
         </label>
+      </div>
+
+      {/* Clear Distinction Helper: Smartwatch BLE vs Mobile <-> PC Cloud Sync */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-[11px] text-zinc-300">
+        <span>
+          💡 Για <strong>σύνδεση Κινητού με Υπολογιστή</strong> (ώστε τα PDF & τα στοιχεία ρολογιού να
+          περνούν αυτόματα στο PC), χρησιμοποίησε τη Σύζευξη Cloud:
+        </span>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event('kinesis-open-sync-modal'))}
+          className="shrink-0 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 font-bold text-emerald-400 hover:bg-emerald-500/25"
+        >
+          Σύζευξη Κινητού ↔ PC
+        </button>
       </div>
 
       {/* 1-Click Functional Verification & Live Sync Simulation Button */}

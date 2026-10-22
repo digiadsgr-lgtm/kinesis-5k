@@ -127,6 +127,10 @@ export interface KinesisDatabaseDump {
   biomarkers: BiomarkerProfile;
   logs: MovementLog[];
   rejections: RejectionEvent[];
+  pdfHistory?: unknown[];
+  transformationGoal?: unknown;
+  uploadedDietPlan?: unknown;
+  smartwatchHistory?: unknown[];
 }
 
 export interface StageDefinition {

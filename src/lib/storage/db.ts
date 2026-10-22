@@ -25,20 +25,45 @@ const SCHEMA_VERSION = '1.1.0';
 const PROFILES_STORAGE_KEY = 'kinesis_device_profiles_v1';
 const ACTIVE_PROFILE_KEY = 'kinesis_active_profile_id_v1';
 const SYNC_KEY_STORAGE = 'kinesis_personal_sync_key_v1';
+const LOCAL_MODIFIED_STORAGE = 'kinesis_local_modified_at_v1';
+
+export function recordLocalModificationTime(isoTime?: string): string {
+  const ts = isoTime || new Date().toISOString();
+  if (typeof window !== 'undefined' && 'localStorage' in window) {
+    window.localStorage.setItem(LOCAL_MODIFIED_STORAGE, ts);
+  }
+  return ts;
+}
+
+export function getLocalModificationTime(): string | null {
+  if (typeof window === 'undefined' || !('localStorage' in window)) return null;
+  return window.localStorage.getItem(LOCAL_MODIFIED_STORAGE);
+}
 
 function triggerBackgroundCloudSync(): void {
   if (typeof window === 'undefined' || typeof fetch === 'undefined') return;
   try {
-    const syncKey = window.localStorage.getItem(SYNC_KEY_STORAGE);
-    if (!syncKey) return;
+    const now = recordLocalModificationTime();
+    let syncKey = window.localStorage.getItem(SYNC_KEY_STORAGE);
+    if (!syncKey) {
+      const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const numPart = Math.floor(100 + Math.random() * 900);
+      syncKey = `KIN-${randomPart}-${numPart}`;
+      window.localStorage.setItem(SYNC_KEY_STORAGE, syncKey);
+    }
+    const keyToUse = syncKey;
     getKinesisSnapshot()
-      .then((snapshot) =>
-        fetch('/api/sync', {
+      .then((snapshot) => {
+        const snapWithTs = { ...snapshot, exportedAt: now };
+        return fetch('/api/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: syncKey, payload: snapshot }),
-        })
-      )
+          body: JSON.stringify({ key: keyToUse, payload: snapWithTs }),
+        });
+      })
+      .then(() => {
+        window.dispatchEvent(new CustomEvent('kinesis-cloud-pushed', { detail: now }));
+      })
       .catch(() => {});
   } catch {
     // Ignore background sync errors when offline
@@ -289,12 +314,26 @@ export async function saveSmartwatchSyncHistory(
 }
 
 export async function getKinesisSnapshot(): Promise<KinesisDatabaseDump> {
-  const [progression, biometrics, biomarkers, logs, rejections] = await Promise.all([
+  const [
+    progression,
+    biometrics,
+    biomarkers,
+    logs,
+    rejections,
+    pdfHistory,
+    transformationGoal,
+    uploadedDietPlan,
+    smartwatchHistory,
+  ] = await Promise.all([
     getKv<UserProgressionState>('progression', DEFAULT_PROGRESSION),
     getKv<DailyBiometrics>('biometrics', DEFAULT_BIOMETRICS),
     getKv<BiomarkerProfile>('biomarkers', DEFAULT_BIOMARKERS),
     getAllFromStore<MovementLog>('logs'),
     getAllFromStore<RejectionEvent>('rejections'),
+    getKv<PdfExtractionResult[]>('pdf_history', []),
+    getKv<PersonalTransformationGoal>('transformation_goal', DEFAULT_TRANSFORMATION_GOAL),
+    getKv<UploadedDietPlan | null>('uploaded_diet_plan', null),
+    getKv<SmartwatchSyncResult[]>('smartwatch_sync_history', []),
   ]);
 
   const sortedLogs = [...logs].sort(
@@ -304,14 +343,20 @@ export async function getKinesisSnapshot(): Promise<KinesisDatabaseDump> {
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
+  const localTs = getLocalModificationTime() || new Date().toISOString();
+
   return {
     schemaVersion: SCHEMA_VERSION,
-    exportedAt: new Date().toISOString(),
+    exportedAt: localTs,
     progression,
     biometrics,
     biomarkers,
     logs: sortedLogs,
     rejections: sortedRejections,
+    pdfHistory,
+    transformationGoal,
+    uploadedDietPlan,
+    smartwatchHistory,
   };
 }
 
@@ -618,7 +663,11 @@ export function validateBackupSchema(parsed: unknown): KinesisDatabaseDump {
   return obj as unknown as KinesisDatabaseDump;
 }
 
-export async function importDatabaseJson(rawJson: string): Promise<KinesisDatabaseDump> {
+export async function importDatabaseJson(
+  rawJson: string,
+  options?: { skipCloudPush?: boolean }
+): Promise<KinesisDatabaseDump> {
+  void options;
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawJson);
@@ -634,11 +683,28 @@ export async function importDatabaseJson(rawJson: string): Promise<KinesisDataba
   await setKv('biometrics', validated.biometrics);
   await setKv('biomarkers', validated.biomarkers);
 
+  if (Array.isArray(validated.pdfHistory)) {
+    await setKv('pdf_history', validated.pdfHistory);
+  }
+  if (validated.transformationGoal && typeof validated.transformationGoal === 'object') {
+    await setKv('transformation_goal', validated.transformationGoal);
+  }
+  if (validated.uploadedDietPlan !== undefined) {
+    await setKv('uploaded_diet_plan', validated.uploadedDietPlan);
+  }
+  if (Array.isArray(validated.smartwatchHistory)) {
+    await setKv('smartwatch_sync_history', validated.smartwatchHistory);
+  }
+
   for (const log of validated.logs) {
     await putInStore('logs', log);
   }
   for (const rej of validated.rejections) {
     await putInStore('rejections', rej);
+  }
+
+  if (validated.exportedAt) {
+    recordLocalModificationTime(validated.exportedAt);
   }
 
   return getKinesisSnapshot();
