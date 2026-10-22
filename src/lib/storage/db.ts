@@ -13,9 +13,74 @@ import {
 import { applyMovementToProgression } from '@/lib/engine/recommender';
 import { PdfExtractionResult } from '@/lib/parser/pdfBiomarkerExtractor';
 
-const DB_NAME = 'kinesis_sit_to_5k_db';
+const BASE_DB_NAME = 'kinesis_sit_to_5k_db';
 const DB_VERSION = 1;
 const SCHEMA_VERSION = '1.1.0';
+const PROFILES_STORAGE_KEY = 'kinesis_device_profiles_v1';
+const ACTIVE_PROFILE_KEY = 'kinesis_active_profile_id_v1';
+
+export interface LocalUserProfile {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+export const DEFAULT_PROFILE: LocalUserProfile = {
+  id: 'default',
+  name: 'Κύριο Προφίλ Συσκευής',
+  createdAt: '2026-01-01T00:00:00.000Z',
+};
+
+export function getDeviceProfiles(): LocalUserProfile[] {
+  if (typeof window === 'undefined' || !('localStorage' in window)) {
+    return [DEFAULT_PROFILE];
+  }
+  try {
+    const raw = window.localStorage.getItem(PROFILES_STORAGE_KEY);
+    if (!raw) return [DEFAULT_PROFILE];
+    const parsed = JSON.parse(raw) as LocalUserProfile[];
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_PROFILE];
+  } catch {
+    return [DEFAULT_PROFILE];
+  }
+}
+
+export function getActiveProfile(): LocalUserProfile {
+  const profiles = getDeviceProfiles();
+  if (typeof window === 'undefined' || !('localStorage' in window)) {
+    return profiles[0];
+  }
+  const activeId = window.localStorage.getItem(ACTIVE_PROFILE_KEY) || 'default';
+  return profiles.find((p) => p.id === activeId) ?? profiles[0];
+}
+
+export function switchActiveProfile(profileId: string): LocalUserProfile {
+  if (typeof window !== 'undefined' && 'localStorage' in window) {
+    window.localStorage.setItem(ACTIVE_PROFILE_KEY, profileId);
+  }
+  return getActiveProfile();
+}
+
+export function createDeviceProfile(name: string): LocalUserProfile {
+  const cleanName = name.trim() || 'Νέος Χρήστης';
+  const newProfile: LocalUserProfile = {
+    id: `prof-${Date.now().toString(36)}`,
+    name: cleanName,
+    createdAt: new Date().toISOString(),
+  };
+  const existing = getDeviceProfiles();
+  const updated = [...existing, newProfile];
+  if (typeof window !== 'undefined' && 'localStorage' in window) {
+    window.localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(updated));
+    window.localStorage.setItem(ACTIVE_PROFILE_KEY, newProfile.id);
+  }
+  return newProfile;
+}
+
+function getCurrentDbName(): string {
+  const active = getActiveProfile();
+  return active.id === 'default' ? BASE_DB_NAME : `${BASE_DB_NAME}_${active.id}`;
+}
 
 export const DEFAULT_CHECK_IN: CheckInInput = {
   mood: 3,
@@ -64,7 +129,7 @@ function openDatabase(): Promise<IDBDatabase> {
       return;
     }
 
-    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+    const request = window.indexedDB.open(getCurrentDbName(), DB_VERSION);
 
     request.onupgradeneeded = () => {
       const db = request.result;

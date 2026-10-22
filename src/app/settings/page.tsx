@@ -1,21 +1,30 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
   Database,
   Download,
+  Lock,
   RotateCcw,
   Settings,
   Sparkles,
   Upload,
+  UserPlus,
+  Users,
 } from 'lucide-react';
 import {
+  createDeviceProfile,
+  DEFAULT_PROFILE,
   exportDatabaseJson,
+  getActiveProfile,
+  getDeviceProfiles,
   importDatabaseJson,
+  LocalUserProfile,
   resetAllData,
   seedDemoData,
+  switchActiveProfile,
 } from '@/lib/storage/db';
 
 export default function SettingsAndBackupPage() {
@@ -24,7 +33,37 @@ export default function SettingsAndBackupPage() {
     text: string;
   } | null>(null);
   const [rawJsonInput, setRawJsonInput] = useState<string>('');
+  const [profiles, setProfiles] = useState<LocalUserProfile[]>([DEFAULT_PROFILE]);
+  const [activeProfile, setActiveProfile] = useState<LocalUserProfile>(DEFAULT_PROFILE);
+  const [newProfileName, setNewProfileName] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setProfiles(getDeviceProfiles());
+    setActiveProfile(getActiveProfile());
+  }, []);
+
+  const handleCreateProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProfileName.trim()) return;
+    const created = createDeviceProfile(newProfileName);
+    setProfiles(getDeviceProfiles());
+    setActiveProfile(created);
+    setNewProfileName('');
+    setStatusMessage({
+      type: 'success',
+      text: `Δημιουργήθηκε και ενεργοποιήθηκε το ξεχωριστό προφίλ «${created.name}» με δική του απομονωμένη βάση!`,
+    });
+  };
+
+  const handleSwitchProfile = (profileId: string) => {
+    const switched = switchActiveProfile(profileId);
+    setActiveProfile(switched);
+    setStatusMessage({
+      type: 'success',
+      text: `Ενεργό προφίλ: «${switched.name}». Τα στατιστικά και τα PDF είναι πλήρως απομονωμένα.`,
+    });
+  };
 
   const handleExportJson = async () => {
     try {
@@ -33,7 +72,9 @@ export default function SettingsAndBackupPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `kinesis-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `kinesis-backup-${activeProfile.id}-${new Date()
+        .toISOString()
+        .slice(0, 10)}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -119,11 +160,10 @@ export default function SettingsAndBackupPage() {
       <header className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
         <div className="flex items-center gap-2 text-emerald-400">
           <Settings className="h-5 w-5" />
-          <h1 className="text-lg font-bold text-zinc-50">Ρυθμίσεις & Τοπικά Δεδομένα (Local-First)</h1>
+          <h1 className="text-lg font-bold text-zinc-50">Ρυθμίσεις, Προφίλ & Ιδιωτικότητα</h1>
         </div>
         <p className="mt-1 text-xs text-zinc-400">
-          Όλα τα δεδομένα σου αποθηκεύονται αποκλειστικά στη συσκευή σου (IndexedDB). Κανένα cloud,
-          πλήρης ιδιωτικότητα.
+          Κάθε συσκευή (και κάθε προφίλ) έχει 100% δική της, απομονωμένη βάση δεδομένων.
         </p>
       </header>
 
@@ -143,6 +183,78 @@ export default function SettingsAndBackupPage() {
           <span>{statusMessage.text}</span>
         </div>
       )}
+
+      {/* Privacy & Multi-Profile Isolation Card */}
+      <section className="space-y-3.5 rounded-2xl border border-emerald-500/35 bg-zinc-900 p-5">
+        <div className="flex items-center gap-2 text-emerald-400">
+          <Lock className="h-4 w-4" />
+          <h2 className="text-sm font-bold text-zinc-100">
+            Τι γίνεται αν έχει κι άλλος το ίδιο Link;
+          </h2>
+        </div>
+
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5 text-xs leading-relaxed text-zinc-300">
+          <p>
+            <strong className="text-emerald-400">1. Σε διαφορετικό κινητό / υπολογιστή:</strong>{' '}
+            Κανένας άλλος δεν βλέπει τα δικά σου στατιστικά, τις κινήσεις ή τα PDF σου! Τα δεδομένα
+            δεν ανεβαίνουν σε κοινό server — αποθηκεύονται τοπικά μέσα στον browser του κάθε
+            κινητού. Όποιος ανοίγει το link από το δικό του κινητό ξεκινάει με δική του, εντελώς
+            άδεια βάση.
+          </p>
+          <p className="mt-2">
+            <strong className="text-emerald-400">2. Στο ΙΔΙΟ κινητό ή tablet:</strong> Αν δύο άτομα
+            χρησιμοποιούν την ίδια συσκευή, μπορείς παρακάτω να δημιουργήσεις ξεχωριστό{' '}
+            <strong>Προσωπικό Προφίλ</strong> ώστε ο καθένας να έχει τα δικά του στατιστικά!
+          </p>
+        </div>
+
+        {/* Profile Switcher */}
+        <div className="space-y-2 pt-1">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-200">
+            <Users className="h-4 w-4 text-emerald-400" />
+            <span>Ενεργό Προφίλ σε αυτή τη Συσκευή:</span>
+          </div>
+
+          <div className="space-y-1.5">
+            {profiles.map((prof) => (
+              <button
+                key={prof.id}
+                type="button"
+                onClick={() => handleSwitchProfile(prof.id)}
+                className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-xs font-semibold transition ${
+                  activeProfile.id === prof.id
+                    ? 'border border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+                    : 'border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <span>{prof.name}</span>
+                {activeProfile.id === prof.id && (
+                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-300">
+                    Ενεργό
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <form onSubmit={handleCreateProfile} className="mt-2 flex gap-2">
+            <input
+              type="text"
+              value={newProfileName}
+              onChange={(e) => setNewProfileName(e.target.value)}
+              placeholder="Όνομα νέου προφίλ (π.χ. Μαρία, Γιώργος)..."
+              className="flex-1 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none"
+            />
+            <button
+              type="submit"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-zinc-950"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Προσθήκη
+            </button>
+          </form>
+        </div>
+      </section>
 
       {/* Demo Seed Card */}
       <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
@@ -170,8 +282,8 @@ export default function SettingsAndBackupPage() {
           1-Click Αντίγραφο Ασφαλείας (JSON Export / Import)
         </h2>
         <p className="text-xs text-zinc-400">
-          Εξαγωγή όλης της βάσης σε αρχείο JSON ή επαναφορά με αυστηρό έλεγχο εγκυρότητας σχήματος
-          (Schema Validation).
+          Εξαγωγή της βάσης του ενεργού προφίλ («{activeProfile.name}») σε αρχείο JSON ή επαναφορά
+          αν αλλάξεις συσκευή.
         </p>
 
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -222,7 +334,8 @@ export default function SettingsAndBackupPage() {
       <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
         <h2 className="text-sm font-bold text-zinc-200">Μηδενισμός & Νέα Αρχή</h2>
         <p className="text-xs text-zinc-400">
-          Διαγράφει τις τοπικές εγγραφές και επαναφέρει το προφίλ στο Stage 0 χωρίς καμία ποινή.
+          Διαγράφει τις τοπικές εγγραφές του ενεργού προφίλ και επαναφέρει το Stage 0 χωρίς καμία
+          ποινή.
         </p>
         <button
           type="button"

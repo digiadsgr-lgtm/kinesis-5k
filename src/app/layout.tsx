@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import Navigation from '@/components/Navigation';
+import InstallPwaPrompt from '@/components/InstallPwaPrompt';
 
 const inter = Inter({
   subsets: ['greek', 'latin'],
@@ -22,6 +23,10 @@ export const metadata: Metadata = {
   description:
     'State-Driven Adaptive Transition Engine. Από την καρέκλα του γραφείου στα 5km με βάση τη βιολογία και το πραγματικό κόστος εκκίνησης.',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -47,7 +52,10 @@ export default function RootLayout({
       className={`dark ${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-zinc-950 font-sans text-zinc-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
-        <main className="mx-auto min-h-screen max-w-md px-4 pb-28 pt-5">{children}</main>
+        <main className="mx-auto min-h-screen max-w-md px-4 pb-28 pt-4">
+          <InstallPwaPrompt />
+          {children}
+        </main>
         <Navigation />
       </body>
     </html>
