@@ -12,7 +12,6 @@ import {
   Droplets,
   Dumbbell,
   Footprints,
-  Home,
   Laptop,
   ListChecks,
   Play,
@@ -49,6 +48,14 @@ import {
   HOME_WORKOUT_PROTOCOLS,
   HomeWorkoutCategory,
   HomeWorkoutProtocol,
+  LIFE_SCENARIO_PRESETS,
+  LifeScenarioPreset,
+  SCENARIO_ATTIRE_LABELS,
+  SCENARIO_EMOTION_LABELS,
+  SCENARIO_PLACE_LABELS,
+  ScenarioAttireTag,
+  ScenarioEmotionTag,
+  ScenarioPlaceTag,
 } from '@/lib/engine/homeWorkouts';
 import {
   calculateAthleticMachineProgress,
@@ -127,7 +134,10 @@ export default function TodayCommandCenter() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   const [overridePrescription, setOverridePrescription] = useState<{
-    prescription: AlternativePrescription;
+    prescription: AlternativePrescription & {
+      specialistBadgeGreek?: string;
+      physiologyAndOrthopedicsGreek?: string;
+    };
     mode: 'bored_swap' | 'micro_step';
   } | null>(null);
 
@@ -135,6 +145,11 @@ export default function TodayCommandCenter() {
   const [selectedHomeCategory, setSelectedHomeCategory] = useState<HomeWorkoutCategory | 'all'>(
     'all'
   );
+  const [selectedPlace, setSelectedPlace] = useState<ScenarioPlaceTag | 'all'>('all');
+  const [selectedEmotion, setSelectedEmotion] = useState<ScenarioEmotionTag | 'all'>('all');
+  const [selectedAttire, setSelectedAttire] = useState<ScenarioAttireTag | 'all'>('all');
+  const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
+  const [showScenarioFilters, setShowScenarioFilters] = useState<boolean>(false);
   const [expandedProtocolId, setExpandedProtocolId] = useState<string | null>(
     HOME_WORKOUT_PROTOCOLS[0]?.id ?? null
   );
@@ -217,6 +232,9 @@ export default function TodayCommandCenter() {
         stepByStepGreek: overridePrescription.prescription.stepByStepGreek,
         habitPointsAward: overridePrescription.prescription.habitPointsAward,
         structuralPointsAward: overridePrescription.prescription.structuralPointsAward,
+        specialistBadgeGreek: overridePrescription.prescription.specialistBadgeGreek,
+        physiologyAndOrthopedicsGreek:
+          overridePrescription.prescription.physiologyAndOrthopedicsGreek,
         negotiatedMode: overridePrescription.mode,
       }
     : {
@@ -229,6 +247,8 @@ export default function TodayCommandCenter() {
         stepByStepGreek: recommendation.stepByStepGreek,
         habitPointsAward: recommendation.habitPointsAward,
         structuralPointsAward: recommendation.structuralPointsAward,
+        specialistBadgeGreek: undefined as string | undefined,
+        physiologyAndOrthopedicsGreek: undefined as string | undefined,
         negotiatedMode: 'primary' as const,
       };
 
@@ -306,15 +326,54 @@ export default function TodayCommandCenter() {
         modality: protocol.modality,
         durationMins: effectiveMins,
         intensityLabel: `${protocol.intensityLabel} • Χωρίς Εξοπλισμό`,
-        reasoningGreek: `Επιλέχθηκε από τη βιβλιοθήκη προγραμμάτων σπιτιού (100% χωρίς εξοπλισμό).`,
+        reasoningGreek: `Επιλέχθηκε εξειδικευμένο πρωτόκολλο (${protocol.specialistBadgeGreek || protocol.categoryLabelGreek}) 100% χωρίς εξοπλισμό.`,
         whatWeAchieveGreek: protocol.whatWeAchieveGreek,
         stepByStepGreek: protocol.exercisesGreek,
         habitPointsAward: protocol.habitPointsAward,
         structuralPointsAward: protocol.structuralPointsAward,
+        specialistBadgeGreek: protocol.specialistBadgeGreek || protocol.categoryLabelGreek,
+        physiologyAndOrthopedicsGreek: protocol.physiologyAndOrthopedicsGreek,
       },
       mode: 'bored_swap',
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleApplyLifeScenario = async (scenario: LifeScenarioPreset) => {
+    setCompletionBanner(null);
+    setActiveScenarioId(scenario.id);
+    const nextCheckIn: CheckInInput = {
+      ...checkIn,
+      environment: scenario.checkInPatch.environment,
+      mood: scenario.checkInPatch.mood,
+      energy: scenario.checkInPatch.energy,
+      timeWindowMins: scenario.checkInPatch.timeWindowMins,
+      painLevel: scenario.checkInPatch.painLevel ?? checkIn.painLevel,
+    };
+    setCheckIn(nextCheckIn);
+    await saveCheckIn(nextCheckIn);
+
+    const matchedProto =
+      HOME_WORKOUT_PROTOCOLS.find((p) => p.id === scenario.recommendedProtocolId) ??
+      HOME_WORKOUT_PROTOCOLS[0];
+
+    setOverridePrescription({
+      prescription: {
+        id: matchedProto.id,
+        title: matchedProto.titleGreek,
+        modality: matchedProto.modality,
+        durationMins: matchedProto.durationMins,
+        intensityLabel: `${matchedProto.intensityLabel} • ${scenario.attireLabelGreek}`,
+        reasoningGreek: `Ενεργοποιήθηκε το 1-Click Σενάριο «${scenario.titleGreek}» (${scenario.placeLabelGreek} • ${scenario.emotionLabelGreek} • ${scenario.specialistLabelGreek}).`,
+        whatWeAchieveGreek: matchedProto.whatWeAchieveGreek,
+        stepByStepGreek: matchedProto.exercisesGreek,
+        habitPointsAward: matchedProto.habitPointsAward,
+        structuralPointsAward: matchedProto.structuralPointsAward,
+        specialistBadgeGreek: matchedProto.specialistBadgeGreek || scenario.specialistLabelGreek,
+        physiologyAndOrthopedicsGreek: matchedProto.physiologyAndOrthopedicsGreek,
+      },
+      mode: 'bored_swap',
+    });
   };
 
   const handleHardDowngrade = async () => {
@@ -477,9 +536,22 @@ export default function TodayCommandCenter() {
   };
 
   const filteredHomeWorkouts = useMemo(() => {
-    if (selectedHomeCategory === 'all') return HOME_WORKOUT_PROTOCOLS;
-    return HOME_WORKOUT_PROTOCOLS.filter((p) => p.category === selectedHomeCategory);
-  }, [selectedHomeCategory]);
+    return HOME_WORKOUT_PROTOCOLS.filter((p) => {
+      if (selectedHomeCategory !== 'all' && p.category !== selectedHomeCategory) {
+        return false;
+      }
+      if (selectedPlace !== 'all' && p.placeTags && !p.placeTags.includes(selectedPlace)) {
+        return false;
+      }
+      if (selectedEmotion !== 'all' && p.emotionTags && !p.emotionTags.includes(selectedEmotion)) {
+        return false;
+      }
+      if (selectedAttire !== 'all' && p.attireTags && !p.attireTags.includes(selectedAttire)) {
+        return false;
+      }
+      return true;
+    });
+  }, [selectedHomeCategory, selectedPlace, selectedEmotion, selectedAttire]);
 
   return (
     <div className="space-y-5">
@@ -783,7 +855,7 @@ export default function TodayCommandCenter() {
                 href="#library-section"
                 className="flex items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 px-2 py-2 text-center text-[11px] font-bold text-zinc-200 active:scale-95"
               >
-                4. 16 Προγράμματα
+                4. Ειδικοί & Σενάρια
               </a>
             </div>
           </header>
@@ -916,7 +988,7 @@ export default function TodayCommandCenter() {
               </div>
             </div>
 
-            {/* 4. Pain Level */}
+            {/* 4. Pain Level & 1-Click Specialist Clinical Presets */}
             <div className="border-t border-zinc-800/80 pt-3">
               <label className="flex items-center justify-between text-xs font-bold text-zinc-200">
                 <span className="flex items-center gap-1.5">
@@ -925,7 +997,7 @@ export default function TodayCommandCenter() {
                       checkIn.painLevel >= 4 ? 'text-amber-400' : 'text-zinc-400'
                     }`}
                   />
-                  Νιώθεις κάποιο πιάσιμο ή πόνο; (0 = Κανένας)
+                  4. Νιώθεις κάποιο πιάσιμο ή πόνο; (0 = Κανένας)
                 </span>
                 <span
                   className={`rounded-lg px-2.5 py-0.5 font-bold ${
@@ -937,6 +1009,49 @@ export default function TodayCommandCenter() {
                   {checkIn.painLevel}/10
                 </span>
               </label>
+
+              {/* 1-Click Clinical Area Chips (Zero Typing Needed!) */}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {[
+                  { label: '✓ Καμία Ενόχληση', pain: 0, loc: '' },
+                  { label: '🩺 Μέση / Ισχίο (Φυσίατρος)', pain: 4, loc: 'Μέση & Οσφυϊκή Μοίρα' },
+                  { label: '🦵 Γόνατο (Ορθοπεδικός)', pain: 4, loc: 'Γόνατο & Επιγονατίδα' },
+                  { label: '💻 Αυχένας / Ώμοι (Φυσίατρος)', pain: 4, loc: 'Αυχένας & Ωμοπλάτη' },
+                  { label: '🤲 Πρωινή Ακαμψία (Ρευματολόγος)', pain: 4, loc: 'Πρωινή ακαμψία αρθρώσεων' },
+                ].map((chip) => {
+                  const isSelected =
+                    (chip.pain === 0 && checkIn.painLevel === 0) ||
+                    (chip.pain > 0 &&
+                      checkIn.painLevel >= 4 &&
+                      checkIn.painLocation === chip.loc);
+                  return (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      onClick={async () => {
+                        const next: CheckInInput = {
+                          ...checkIn,
+                          painLevel: chip.pain,
+                          painLocation: chip.loc,
+                        };
+                        setCheckIn(next);
+                        setOverridePrescription(null);
+                        await saveCheckIn(next);
+                      }}
+                      className={`rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition active:scale-95 ${
+                        isSelected
+                          ? chip.pain === 0
+                            ? 'bg-emerald-500 text-zinc-950'
+                            : 'border border-amber-400 bg-amber-500/20 text-amber-200'
+                          : 'border border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700'
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
+              </div>
+
               <input
                 type="range"
                 min={0}
@@ -950,7 +1065,7 @@ export default function TodayCommandCenter() {
                   type="text"
                   value={checkIn.painLocation}
                   onChange={(e) => updateCheckInField('painLocation', e.target.value)}
-                  placeholder="Πού νιώθεις ενόχληση; (π.χ. γόνατο, μέση, αυχένας)"
+                  placeholder="Πού νιώθεις ενόχληση; (π.χ. γόνατο, μέση, αυχένας, ακαμψία)"
                   className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-amber-500 focus:outline-none"
                 />
               )}
@@ -988,6 +1103,13 @@ export default function TodayCommandCenter() {
               {displayedPrescription.intensityLabel} • 100% Χωρίς Εξοπλισμό
             </p>
 
+            {displayedPrescription.specialistBadgeGreek && (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-extrabold text-emerald-300">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                <span>{displayedPrescription.specialistBadgeGreek}</span>
+              </div>
+            )}
+
             {/* 1. WHAT WE ACHIEVE IN THE BODY (Τι πετυχαίνουμε) */}
             <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
               <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
@@ -997,6 +1119,11 @@ export default function TodayCommandCenter() {
               <p className="mt-1 text-sm leading-relaxed text-zinc-100">
                 {displayedPrescription.whatWeAchieveGreek}
               </p>
+              {displayedPrescription.physiologyAndOrthopedicsGreek && (
+                <p className="mt-2 border-t border-emerald-500/20 pt-2 text-xs leading-relaxed text-emerald-200/95">
+                  🔬 <strong>{displayedPrescription.physiologyAndOrthopedicsGreek}</strong>
+                </p>
+              )}
             </div>
 
             {/* 2. EXACT STEP-BY-STEP INSTRUCTIONS (Τι κάνω ακριβώς βήμα-βήμα) */}
@@ -1061,58 +1188,286 @@ export default function TodayCommandCenter() {
             </div>
           </section>
 
-          {/* RICH EQUIPMENT-FREE WORKOUT LIBRARY (16 Programs for Ages 5-105) */}
+          {/* MULTIDISCIPLINARY SPECIALIST PROTOCOLS & 1-CLICK LIFE SCENARIO MATRIX */}
           <section
             id="library-section"
-            aria-label="Βιβλιοθήκη Ασκήσεων Χωρίς Εξοπλισμό"
-            className="scroll-mt-20 space-y-3.5 rounded-2xl border border-zinc-800/90 bg-zinc-900/95 p-4 sm:p-5 shadow-lg"
+            aria-label="Πρωτόκολλα Ειδικών & Σενάρια Ζωής"
+            className="scroll-mt-20 space-y-4 rounded-2xl border border-emerald-500/35 bg-zinc-900/95 p-4 sm:p-5 shadow-lg"
           >
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <div className="flex items-center gap-2 text-emerald-400">
-                  <Home className="h-4 w-4" />
-                  <h3 className="text-sm font-bold text-zinc-100 sm:text-base">
-                    Έτοιμα Προγράμματα Σπιτιού & Γραφείου ({HOME_WORKOUT_PROTOCOLS.length})
-                  </h3>
-                </div>
-                <p className="mt-1 text-xs text-zinc-400">
-                  100% χωρίς κανέναν εξοπλισμό. Απλές, κατανοητές κινήσεις για κάθε ηλικία (5–105
-                  ετών).
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">
+                  <Sparkles className="h-3 w-3" />
+                  Φυσίατροι • Ορθοπεδικοί • Ρευματολόγοι • Ειδικοί Γυμναστές • Εργοφυσιολογία
+                </span>
+                <h3 className="mt-1.5 text-sm font-bold text-zinc-100 sm:text-base">
+                  Πρωτόκολλα Ειδικών & 1-Click Σενάρια Ζωής ({HOME_WORKOUT_PROTOCOLS.length} Προγράμματα)
+                </h3>
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  Πάτησε με <strong>1 κλικ</strong> το σενάριο που ταιριάζει στον{' '}
+                  <strong>τόπο</strong>, το <strong>συναίσθημα</strong> και την{' '}
+                  <strong>ένδυσή</strong> σου αυτή τη στιγμή — ή διάλεξε ειδικότητα!
                 </p>
               </div>
               <Dumbbell className="h-5 w-5 shrink-0 text-emerald-400" />
             </div>
 
-            {/* Category Filter Pills (Clean Responsive Wrap on Mobile & Desktop) */}
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              <button
-                type="button"
-                onClick={() => setSelectedHomeCategory('all')}
-                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
-                  selectedHomeCategory === 'all'
-                    ? 'bg-emerald-500 text-zinc-950'
-                    : 'border border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700'
-                }`}
-              >
-                Όλα ({HOME_WORKOUT_PROTOCOLS.length})
-              </button>
-              {(Object.keys(HOME_WORKOUT_CATEGORY_LABELS) as HomeWorkoutCategory[]).map((cat) => (
+            {/* PART 1: 1-CLICK INSTANT LIFE SCENARIOS (Maximum Usability Index!) */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-extrabold text-emerald-400">
+                  ⚡ 1-Click Έτοιμα Σενάρια (Τόπος × Συναίσθημα × Ένδυση × Ειδικός):
+                </span>
                 <button
-                  key={cat}
                   type="button"
-                  onClick={() => setSelectedHomeCategory(cat)}
+                  onClick={() => setShowScenarioFilters((prev) => !prev)}
+                  className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/20"
+                >
+                  {showScenarioFilters
+                    ? 'Κλείσιμο Φίλτρων Τόπου/Ρούχων'
+                    : '🎛️ Συνδυασμός Φίλτρων (Τόπος / Συναίσθημα / Ένδυση)'}
+                </button>
+              </div>
+
+              <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {LIFE_SCENARIO_PRESETS.map((scen) => {
+                  const isActive = activeScenarioId === scen.id;
+                  const linkedProto = HOME_WORKOUT_PROTOCOLS.find(
+                    (p) => p.id === scen.recommendedProtocolId
+                  );
+                  return (
+                    <div
+                      key={scen.id}
+                      className={`flex flex-col justify-between rounded-xl border p-3 transition ${
+                        isActive
+                          ? 'border-emerald-500 bg-emerald-500/15 shadow-md'
+                          : 'border-zinc-800/90 bg-zinc-900/80 hover:border-emerald-500/40'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-xs font-bold leading-snug text-zinc-100">
+                            {scen.iconEmoji} {scen.titleGreek}
+                          </span>
+                          {linkedProto && (
+                            <span className="shrink-0 rounded-lg bg-zinc-950 px-2 py-0.5 text-[10px] font-extrabold text-emerald-400">
+                              {linkedProto.durationMins}&apos;
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-[11px] leading-relaxed text-zinc-400">
+                          {scen.subtitleGreek}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1 text-[10px]">
+                          <span className="rounded bg-zinc-950 px-1.5 py-0.5 text-emerald-300">
+                            {scen.specialistLabelGreek}
+                          </span>
+                          <span className="rounded bg-zinc-950 px-1.5 py-0.5 text-zinc-300">
+                            {scen.placeLabelGreek}
+                          </span>
+                          <span className="rounded bg-zinc-950 px-1.5 py-0.5 text-zinc-300">
+                            {scen.attireLabelGreek}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-2.5 flex items-center justify-end gap-1.5 border-t border-zinc-800/70 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleApplyLifeScenario(scen)}
+                          className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] font-bold text-zinc-200 hover:border-emerald-500/50"
+                        >
+                          Φόρτωση Σεναρίου
+                        </button>
+                        {linkedProto && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleApplyLifeScenario(scen);
+                              setActiveTimer({
+                                title: linkedProto.titleGreek,
+                                modality: linkedProto.modality,
+                                durationMins: linkedProto.durationMins,
+                                intensityLabel: linkedProto.intensityLabel,
+                                habitPointsAward: linkedProto.habitPointsAward,
+                                structuralPointsAward: linkedProto.structuralPointsAward,
+                                wasNegotiated: 'bored_swap',
+                                exercisesGreek: linkedProto.exercisesGreek,
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1 text-[11px] font-extrabold text-zinc-950"
+                          >
+                            <Play className="h-3 w-3 fill-current" />
+                            Άμεση Έναρξη ({linkedProto.durationMins}&apos;)
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* PART 2: OPTIONAL MULTI-DIMENSIONAL FILTER (Place × Emotion × Attire) */}
+            {showScenarioFilters && (
+              <div className="space-y-3 rounded-2xl border border-emerald-500/30 bg-zinc-950 p-3.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-400">
+                    Φτιάξε το δικό σου Σενάριο (Επίλεξε Τόπο, Συναίσθημα ή Ένδυση):
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPlace('all');
+                      setSelectedEmotion('all');
+                      setSelectedAttire('all');
+                      setSelectedHomeCategory('all');
+                    }}
+                    className="text-[11px] font-semibold text-zinc-400 underline hover:text-emerald-400"
+                  >
+                    Καθαρισμός Φίλτρων
+                  </button>
+                </div>
+
+                {/* Place Filter */}
+                <div>
+                  <span className="block text-[11px] font-semibold text-zinc-400">
+                    1. Τόπος / Χώρος:
+                  </span>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPlace('all')}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${
+                        selectedPlace === 'all'
+                          ? 'bg-emerald-500 text-zinc-950'
+                          : 'border border-zinc-800 bg-zinc-900 text-zinc-300'
+                      }`}
+                    >
+                      Όλοι οι Χώροι
+                    </button>
+                    {(Object.keys(SCENARIO_PLACE_LABELS) as ScenarioPlaceTag[]).map((pl) => (
+                      <button
+                        key={pl}
+                        type="button"
+                        onClick={() => setSelectedPlace(pl)}
+                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${
+                          selectedPlace === pl
+                            ? 'bg-emerald-500 text-zinc-950'
+                            : 'border border-zinc-800 bg-zinc-900 text-zinc-300'
+                        }`}
+                      >
+                        {SCENARIO_PLACE_LABELS[pl]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Emotion Filter */}
+                <div>
+                  <span className="block text-[11px] font-semibold text-zinc-400">
+                    2. Συναίσθημα / Ψυχολογία:
+                  </span>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEmotion('all')}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${
+                        selectedEmotion === 'all'
+                          ? 'bg-emerald-500 text-zinc-950'
+                          : 'border border-zinc-800 bg-zinc-900 text-zinc-300'
+                      }`}
+                    >
+                      Όλα τα Συναισθήματα
+                    </button>
+                    {(Object.keys(SCENARIO_EMOTION_LABELS) as ScenarioEmotionTag[]).map((em) => (
+                      <button
+                        key={em}
+                        type="button"
+                        onClick={() => setSelectedEmotion(em)}
+                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${
+                          selectedEmotion === em
+                            ? 'bg-emerald-500 text-zinc-950'
+                            : 'border border-zinc-800 bg-zinc-900 text-zinc-300'
+                        }`}
+                      >
+                        {SCENARIO_EMOTION_LABELS[em]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Attire Filter */}
+                <div>
+                  <span className="block text-[11px] font-semibold text-zinc-400">
+                    3. Ένδυση / Παπούτσια:
+                  </span>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAttire('all')}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${
+                        selectedAttire === 'all'
+                          ? 'bg-emerald-500 text-zinc-950'
+                          : 'border border-zinc-800 bg-zinc-900 text-zinc-300'
+                      }`}
+                    >
+                      Όλες οι Ενδύσεις
+                    </button>
+                    {(Object.keys(SCENARIO_ATTIRE_LABELS) as ScenarioAttireTag[]).map((at) => (
+                      <button
+                        key={at}
+                        type="button"
+                        onClick={() => setSelectedAttire(at)}
+                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${
+                          selectedAttire === at
+                            ? 'bg-emerald-500 text-zinc-950'
+                            : 'border border-zinc-800 bg-zinc-900 text-zinc-300'
+                        }`}
+                      >
+                        {SCENARIO_ATTIRE_LABELS[at]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PART 3: SPECIALIST & CATEGORY FILTER PILLS */}
+            <div>
+              <span className="mb-1.5 block text-[11px] font-bold text-zinc-400">
+                Φίλτρο Ειδικότητας & Κατηγορίας ({filteredHomeWorkouts.length} διαθέσιμα πρωτόκολλα):
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedHomeCategory('all')}
                   className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
-                    selectedHomeCategory === cat
+                    selectedHomeCategory === 'all'
                       ? 'bg-emerald-500 text-zinc-950'
                       : 'border border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700'
                   }`}
                 >
-                  {HOME_WORKOUT_CATEGORY_LABELS[cat]}
+                  Όλα ({HOME_WORKOUT_PROTOCOLS.length})
                 </button>
-              ))}
+                {(Object.keys(HOME_WORKOUT_CATEGORY_LABELS) as HomeWorkoutCategory[]).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedHomeCategory(cat)}
+                    className={`rounded-xl px-3 py-2 text-left text-xs font-bold transition ${
+                      selectedHomeCategory === cat
+                        ? 'bg-emerald-500 text-zinc-950'
+                        : 'border border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700'
+                    }`}
+                  >
+                    {HOME_WORKOUT_CATEGORY_LABELS[cat]}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Responsive Cards Grid (1 Col on Mobile, 2 Cols on Tablet/Desktop) */}
+            {/* PART 4: RESPONSIVE SPECIALIST PROTOCOL CARDS GRID */}
             <div className="grid grid-cols-1 gap-3 pt-1 md:grid-cols-2">
               {filteredHomeWorkouts.map((proto) => {
                 const isExpanded = expandedProtocolId === proto.id;
@@ -1126,7 +1481,8 @@ export default function TodayCommandCenter() {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <span className="inline-block rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                            {proto.categoryLabelGreek} • {proto.equipmentGreek}
+                            {proto.specialistBadgeGreek || proto.categoryLabelGreek} •{' '}
+                            {proto.equipmentGreek}
                           </span>
                           <h4 className="mt-1.5 text-sm font-bold leading-snug text-zinc-100">
                             {proto.titleGreek}
@@ -1141,6 +1497,15 @@ export default function TodayCommandCenter() {
                         <strong className="text-emerald-400">Τι πετυχαίνουμε: </strong>
                         {proto.whatWeAchieveGreek}
                       </p>
+
+                      {proto.physiologyAndOrthopedicsGreek && (
+                        <div className="mt-2 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-2.5 text-[11px] leading-relaxed text-zinc-300">
+                          🔬{' '}
+                          <span className="text-emerald-300 font-semibold">
+                            {proto.physiologyAndOrthopedicsGreek}
+                          </span>
+                        </div>
+                      )}
 
                       {isExpanded && (
                         <ol className="mt-3 space-y-2 border-t border-zinc-800/80 pt-3 text-xs leading-relaxed text-zinc-200">

@@ -10,7 +10,7 @@ import {
   extractTextFromPdfBuffer,
   parseBiomarkersFromText,
 } from '@/lib/parser/pdfBiomarkerExtractor';
-import { HOME_WORKOUT_PROTOCOLS } from './homeWorkouts';
+import { HOME_WORKOUT_PROTOCOLS, LIFE_SCENARIO_PRESETS } from './homeWorkouts';
 import {
   createSampleSmartwatchTcx,
   parseSmartwatchRawContent,
@@ -333,8 +333,8 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       expect(batch.mergedProfile.fastingGlucose).toBe(94);
     });
 
-    it('provides 16 equipment-free home conditioning protocols with step-by-step Greek exercises', () => {
-      expect(HOME_WORKOUT_PROTOCOLS.length).toBe(16);
+    it('provides 30 equipment-free home & specialist conditioning protocols with step-by-step Greek exercises', () => {
+      expect(HOME_WORKOUT_PROTOCOLS.length).toBe(30);
       for (const proto of HOME_WORKOUT_PROTOCOLS) {
         expect(proto.equipmentGreek).toBe('Κανένας εξοπλισμός');
         expect(proto.exercisesGreek.length).toBeGreaterThan(0);
@@ -659,6 +659,70 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
         ],
       };
       expect(isGarbledDietPlan(corruptedPlan)).toBe(true);
+    });
+
+    it('provides 30 specialist protocols, 8 life scenarios, and targeted clinical pain routing', () => {
+      expect(HOME_WORKOUT_PROTOCOLS.length).toBe(30);
+      expect(LIFE_SCENARIO_PRESETS.length).toBe(8);
+
+      for (const p of HOME_WORKOUT_PROTOCOLS) {
+        expect(p.specialistBadgeGreek?.length).toBeGreaterThan(3);
+        expect(p.physiologyAndOrthopedicsGreek?.length).toBeGreaterThan(15);
+        expect(p.placeTags?.length).toBeGreaterThan(0);
+        expect(p.emotionTags?.length).toBeGreaterThan(0);
+        expect(p.attireTags?.length).toBeGreaterThan(0);
+      }
+
+      const kneeRec = calculateRecommendation(
+        {
+          mood: 3,
+          energy: 3,
+          painLevel: 5,
+          painLocation: 'γόνατο',
+          timeWindowMins: 10,
+          environment: 'home_slippers',
+        },
+        2,
+        healthyBiometrics,
+        normalBiomarkers,
+        []
+      );
+      expect(kneeRec.title).toContain('Ορθοπεδικό Πρωτόκολλο Αποφόρτισης Γόνατος');
+      expect(kneeRec.whatWeAchieveGreek).toContain('Ορθοπεδική Προστασία Χόνδρου');
+
+      const backRec = calculateRecommendation(
+        {
+          mood: 3,
+          energy: 3,
+          painLevel: 5,
+          painLocation: 'μέση / ισχίο',
+          timeWindowMins: 10,
+          environment: 'home_slippers',
+        },
+        2,
+        healthyBiometrics,
+        normalBiomarkers,
+        []
+      );
+      expect(backRec.title).toContain('Πρωτόκολλο Φυσιάτρου: Αποσυμπίεση Μέσης');
+      expect(backRec.whatWeAchieveGreek).toContain('McKenzie');
+
+      const rheumRec = calculateRecommendation(
+        {
+          mood: 3,
+          energy: 2,
+          painLevel: 4,
+          painLocation: 'πρωινή ακαμψία / αρθρώσεις',
+          timeWindowMins: 10,
+          environment: 'home_slippers',
+        },
+        2,
+        healthyBiometrics,
+        normalBiomarkers,
+        []
+      );
+      expect(rheumRec.title).toContain('Πρωτόκολλο Ρευματολόγου');
+      expect(rheumRec.whatWeAchieveGreek).toContain('αρθρικό υγρό');
     });
   });
 });

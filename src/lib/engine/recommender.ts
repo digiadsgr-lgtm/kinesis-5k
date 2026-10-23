@@ -413,9 +413,9 @@ export function calculateRecommendation(
   const elevatedRhr = biometrics.rhr > biometrics.baselineRhr + 5;
 
   if (highPain) {
-    const locationText = checkIn.painLocation?.trim()
-      ? ` στην περιοχή «${checkIn.painLocation.trim()}»`
-      : '';
+    const rawLoc = checkIn.painLocation?.trim() || '';
+    const locLower = rawLoc.toLowerCase();
+    const locationText = rawLoc ? ` στην περιοχή «${rawLoc}»` : '';
     safetyAlertsGreek.unshift(
       `Safety Gate Ενεργό: Καταγράφηκε πόνος ${checkIn.painLevel}/10${locationText}. Οι κραδασμοί κλειδώθηκαν στο μηδέν για προστασία του σώματος.`
     );
@@ -430,6 +430,48 @@ export function calculateRecommendation(
       safeDuration <= 5
     );
 
+    let clinicalTitle = `${safeDuration}' Απαλό Ξεμπλοκάρισμα Χωρίς Κραδασμούς (Προστασία Πόνου)`;
+    let clinicalWhatWeAchieve = painBlueprint.whatWeAchieveGreek;
+    let clinicalSteps = painBlueprint.stepByStepGreek;
+
+    if (locLower.includes('γόνατ') || locLower.includes('γονατ') || locLower.includes('επιγονατ')) {
+      clinicalTitle = `${safeDuration}' Ορθοπεδικό Πρωτόκολλο Αποφόρτισης Γόνατος (Μηδέν Κραδασμοί)`;
+      clinicalWhatWeAchieve =
+        'Ορθοπεδική Προστασία Χόνδρου: Ενεργοποιούμε ισομετρικά τον έσω τετρακέφαλο και τον μέσο γλουτιαίο χωρίς τριβή στην επιγονατίδα, προκαλώντας φυσική αναλγησία στον τένοντα.';
+      clinicalSteps = [
+        'Βήμα 1 (Ισομετρική Σύσφιξη Μηρού Όρθιος): Στάσου όρθιος, τέντωσε το γόνατο και σφίξε τον μηρό για 5 δευτερόλεπτα χωρίς να λυγίζεις την άρθρωση (10 επαναλήψεις).',
+        'Βήμα 2 (Πλάγια Απαγωγή Ισχίου): Σήκωσε τεντωμένο το πόδι 20 εκ. στο πλάι για να δυναμώσει η λεκάνη που στηρίζει το γόνατο (10 φορές σε κάθε πόδι).',
+        'Βήμα 3 (Αργή Μεταφορά Βάρους & Αναπνοή): Μετακίνησε απαλά το βάρος δεξιά-αριστερά με ίσια πλάτη και βαθιές αναπνοές.',
+      ];
+    } else if (locLower.includes('μέση') || locLower.includes('μεση') || locLower.includes('οσφυ') || locLower.includes('ισχι')) {
+      clinicalTitle = `${safeDuration}' Πρωτόκολλο Φυσιάτρου: Αποσυμπίεση Μέσης & Ισχίου (Όρθιο McKenzie)`;
+      clinicalWhatWeAchieve =
+        'Φυσιατρική Αποσυμπίεση Δίσκων: Με ήπιες όρθιες εκτάσεις McKenzie και διάταση λαγονοψοΐτη απομακρύνουμε την πίεση από τους οσφυϊκούς δίσκους (Ο4-Ο5/Ο5-Ι1).';
+      clinicalSteps = [
+        'Βήμα 1 (Όρθια Έκταση McKenzie): Βάλε τις παλάμες χαμηλά στη μέση και γείρε απαλά τον κορμό προς τα πίσω για 3 δευτερόλεπτα (8 αργές επαναλήψεις).',
+        'Βήμα 2 (Αποφόρτιση Γοφών): Κάνε ένα μικρό βήμα πίσω, κράτα τον κορμό όρθιο και σφίξε τον πίσω γλουτό για 25 δευτερόλεπτα ώστε να χαλαρώσει η μέση. Άλλαξε πόδι.',
+        'Βήμα 3 (Ήρεμη Βάδιση Αποσυμπίεσης): Περπάτησε αργά στον χώρο αφήνοντας τους ώμους χαλαρούς.',
+      ];
+    } else if (locLower.includes('αυχέν') || locLower.includes('αυχεν') || locLower.includes('ώμ') || locLower.includes('ωμ')) {
+      clinicalTitle = `${safeDuration}' Πρωτόκολλο Φυσιάτρου: Αποφόρτιση Αυχένα & Ωμοπλάτης`;
+      clinicalWhatWeAchieve =
+        'Φυσιατρική Ευθυγράμμιση Αυχένα: Αποφορτίζουμε τους αυχενικούς σπονδύλους και τον τραπεζοειδή μυ από το βάρος της οθόνης.';
+      clinicalSteps = [
+        'Βήμα 1 (Chin Tuck / Ολίσθηση Αυχένα): Κοίτα ευθεία και τράβα απαλά το πηγούνι οριζόντια προς τα πίσω για 3 δευτερόλεπτα (10 φορές).',
+        'Βήμα 2 (Κύκλοι Ωμοπλάτης): Κάνε 12 αργούς κύκλους ώμων προς τα πίσω και κάτω.',
+        'Βήμα 3 (Διαφραγματική Αναπνοή): Εισπνοή 4" από τη μύτη, εκπνοή 6" από το στόμα αφήνοντας τους ώμους να πέσουν.',
+      ];
+    } else if (locLower.includes('ακαμψ') || locLower.includes('αρθρωσ') || locLower.includes('άρθρωσ') || locLower.includes('ρευμ')) {
+      clinicalTitle = `${safeDuration}' Πρωτόκολλο Ρευματολόγου: Ήπια Ροή Αρθρικού Υγρού`;
+      clinicalWhatWeAchieve =
+        'Ρευματολογική Λίπανση Αρθρώσεων: Ρευστοποιούμε το αρθρικό υγρό με αργές κυκλικές κινήσεις μηδενικής αντίστασης.';
+      clinicalSteps = [
+        'Βήμα 1 (Δάχτυλα & Καρποί): Άνοιξε και κλείσε απαλά τα δάχτυλα και κάνε 10 αργούς κύκλους καρπών.',
+        'Βήμα 2 (Ώμοι & Λεκάνη): Κάνε αργούς, γλυκούς κύκλους ώμων και λεκάνης χωρίς κανένα ζόρισμα.',
+        'Βήμα 3 (Ποδοκνημική): Ανέβαζε εναλλάξ τις φτέρνες σαν αργό πεντάλ 20 φορές.',
+      ];
+    }
+
     const microDuration = Math.min(2, safeDuration);
     const microBlueprint = buildPrescriptionDetails(
       'mobility',
@@ -442,13 +484,13 @@ export function calculateRecommendation(
 
     return {
       id: `rec-safety-pain-${stage}-${safeDuration}`,
-      title: `${safeDuration}' Απαλό Ξεμπλοκάρισμα Χωρίς Κραδασμούς (Προστασία Πόνου)`,
+      title: clinicalTitle,
       modality: 'mobility',
       durationMins: safeDuration,
       intensityLabel: 'Safety Gate • Μηδενικός Κραδασμός',
       reasoningGreek: `Επειδή ανέφερες πόνο (${checkIn.painLevel}/10${locationText}), το Σύστημα Ασφαλείας κλειδώνει τους κραδασμούς στο μηδέν. Κάνουμε μόνο απαλή κίνηση ${safeDuration} λεπτών χωρίς καμία επιβάρυνση.`,
-      whatWeAchieveGreek: painBlueprint.whatWeAchieveGreek,
-      stepByStepGreek: painBlueprint.stepByStepGreek,
+      whatWeAchieveGreek: clinicalWhatWeAchieve,
+      stepByStepGreek: clinicalSteps,
       safetyAlertsGreek,
       mosScore,
       habitPointsAward: 15,
