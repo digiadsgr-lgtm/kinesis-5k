@@ -1026,6 +1026,16 @@ export default function HealthBiomarkersHub() {
                 <Files className="h-6 w-6 shrink-0 text-emerald-400" />
               </div>
 
+              <div className="rounded-xl border border-emerald-500/30 bg-zinc-950 px-3 py-2 text-[11px] leading-relaxed text-zinc-300">
+                <strong className="text-emerald-400">💾 Πώς αποθηκεύονται τα PDF: </strong>
+                Μόλις επιλέξεις αρχείο PDF, οι τιμές εξάγονται και{' '}
+                <strong className="text-zinc-100">
+                  αποθηκεύονται ΑΥΤΟΜΑΤΑ στη συσκευή σου και στο Cloud
+                </strong>{' '}
+                (δεν χρειάζεται επιπλέον πάτημα). Αν επικολλήσεις κείμενο, πάτησε «Εξαγωγή &
+                Συγχώνευση Τιμών».
+              </div>
+
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-xs font-bold text-zinc-950 shadow-lg shadow-emerald-500/20 transition active:scale-[0.99]">
                   <FileUp className="h-4 w-4" />
@@ -1120,7 +1130,12 @@ export default function HealthBiomarkersHub() {
                         className="rounded-xl border border-zinc-800 bg-zinc-900/90 p-3 text-xs"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-zinc-100 break-all">{pdf.fileName}</span>
+                          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                            <span className="font-bold text-zinc-100 break-all">{pdf.fileName}</span>
+                            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                              ✓ Αποθηκευμένο (Auto-Save)
+                            </span>
+                          </div>
                           <button
                             type="button"
                             onClick={() => handleRemovePdfFromHistory(pdf.id)}
@@ -1189,6 +1204,15 @@ export default function HealthBiomarkersHub() {
                   <RotateCcw className="h-3 w-3" />
                   Μηδενισμός Δεικτών
                 </button>
+              </div>
+
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-[11px] text-zinc-300">
+                <strong className="text-emerald-400">✍️ Πώς αποθηκεύονται οι χειροκίνητες τιμές: </strong>
+                Αν αλλάξεις κάποιον αριθμό με το χέρι παρακάτω, πάτησε το πράσινο κουμπί{' '}
+                <strong className="text-zinc-100">
+                  «Αποθήκευση & Συγχρονισμός Αιματολογικών»
+                </strong>{' '}
+                στο τέλος της φόρμας.
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1339,6 +1363,16 @@ export default function HealthBiomarkersHub() {
               </div>
 
               {/* Quick 1-Click Biometric Presets */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-[11px] text-zinc-300">
+                <strong className="text-emerald-400">✍️ Πώς αποθηκεύονται τα Βιομετρικά: </strong>
+                Τα κουμπιά γρήγορης ρύθμισης αποθηκεύουν <strong>αυτόματα</strong>. Αν πληκτρολογήσεις
+                νέα τιμή στα πεδία (π.χ. Ύπνο, Παλμούς, Βήματα ή Βάρος), πάτησε{' '}
+                <strong className="text-zinc-100">
+                  «Αποθήκευση & Συγχρονισμός Βιομετρικών»
+                </strong>{' '}
+                στο τέλος της φόρμας.
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"

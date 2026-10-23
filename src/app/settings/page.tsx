@@ -939,6 +939,14 @@ export default function SettingsAndBackupPage() {
                 επαναφορά από αρχείο.
               </p>
 
+              <div className="rounded-xl border border-emerald-500/30 bg-zinc-950 px-3 py-2 text-[11px] leading-relaxed text-zinc-300">
+                <strong className="text-emerald-400">💾 Πώς αποθηκεύεται το Backup: </strong>
+                Μόλις επιλέξεις αρχείο με το κουμπί <strong>«Εισαγωγή από Αρχείο JSON»</strong>, η
+                βάση <strong className="text-zinc-100">αποθηκεύεται ΑΥΤΟΜΑΤΑ</strong>. Αν
+                επικολλήσεις κείμενο JSON στο πλαίσιο, πάτησε το κουμπί{' '}
+                <strong className="text-zinc-100">«Επικύρωση & Εισαγωγή Κειμένου JSON»</strong>.
+              </div>
+
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <button
                   type="button"

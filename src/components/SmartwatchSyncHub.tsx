@@ -574,6 +574,17 @@ export default function SmartwatchSyncHub({
         )}
       </div>
 
+      <div className="rounded-xl border border-emerald-500/30 bg-zinc-950 px-3 py-2 text-[11px] leading-relaxed text-zinc-300">
+        <strong className="text-emerald-400">💾 Πώς αποθηκεύονται τα στοιχεία Ρολογιού / Αρχείων: </strong>
+        Η άντληση από <strong>Google Health (1)</strong>, το ανέβασμα{' '}
+        <strong>Αρχείου .CSV/.TCX/.JSON (2)</strong> και το <strong>Bluetooth (3)</strong>{' '}
+        <strong className="text-zinc-100">
+          αποθηκεύονται ΑΥΤΟΜΑΤΑ στη συσκευή και στο Cloud
+        </strong>
+        . Στον <strong>Ζωντανό Βηματομετρητή (4)</strong>, πατάς μία φορά για έναρξη και ξανά για
+        αποθήκευση.
+      </div>
+
       {/* 4 Direct Sync Bridges Grid */}
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         {/* Bridge 1: Google Health Connect / Health Sync Pull */}

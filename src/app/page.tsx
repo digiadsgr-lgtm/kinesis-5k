@@ -1209,6 +1209,7 @@ export default function TodayCommandCenter() {
         onSaveGoal={async (updatedGoal) => {
           const saved = await saveTransformationGoal(updatedGoal);
           setGoal(saved);
+          await pushProgressToCloud(getPersonalSyncKey());
         }}
         onSaveDietPlan={async (newPlan) => {
           const saved = await saveUploadedDietPlan(newPlan);

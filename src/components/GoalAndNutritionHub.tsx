@@ -9,6 +9,7 @@ import {
   HeartHandshake,
   Play,
   RefreshCw,
+  Save,
   Sparkles,
   Target,
   Trash2,
@@ -70,9 +71,19 @@ export default function GoalAndNutritionHub({
   const [showPasteDiet, setShowPasteDiet] = useState<boolean>(false);
   const [pastedDietText, setPastedDietText] = useState<string>('');
   const [dietStatus, setDietStatus] = useState<string | null>(null);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
+  const [isSavingDiet, setIsSavingDiet] = useState<boolean>(false);
+  const [goalSavedNotice, setGoalSavedNotice] = useState<string | null>(null);
   const [editingMealIndex, setEditingMealIndex] = useState<number | null>(null);
   const [editingMealText, setEditingMealText] = useState<string>('');
   const dietFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const formatNowTime = () =>
+    new Date().toLocaleTimeString('el-GR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
 
   useEffect(() => {
     if (dietPlan && isGarbledDietPlan(dietPlan)) {
@@ -100,6 +111,7 @@ export default function GoalAndNutritionHub({
       weeklyTargetMinutes: Math.max(10, draftWeeklyMins),
     });
     setIsEditingGoal(false);
+    setGoalSavedNotice(`✓ Ο στόχος σου αποθηκεύτηκε & συγχρονίστηκε (${formatNowTime()})!`);
   };
 
   const handleSelectPresetGoal = async (preset: (typeof PRESET_GOALS_GREEK)[number]) => {
@@ -113,6 +125,7 @@ export default function GoalAndNutritionHub({
       weeklyTargetMinutes: preset.weeklyMins,
     });
     setIsEditingGoal(false);
+    setGoalSavedNotice(`✓ Ο στόχος «${preset.title}» αποθηκεύτηκε αυτόματα (${formatNowTime()})!`);
   };
 
   const handleCravingResetClick = async () => {
@@ -141,45 +154,99 @@ export default function GoalAndNutritionHub({
   const handleDietFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setIsSavingDiet(true);
     try {
       const parsed = await parseDietPlanFile(file);
       await onSaveDietPlan(parsed);
-      setDietStatus(`Η διατροφή σου («${file.name}») αναλύθηκε και συνδέθηκε με την κίνησή σου!`);
+      const t = formatNowTime();
+      setLastSavedTime(t);
+      setDietStatus(
+        `✓ ΑΥΤΟΜΑΤΗ ΑΠΟΘΗΚΕΥΣΗ (${t}): Το αρχείο «${file.name}» αναλύθηκε, αποθηκεύτηκε στη συσκευή σου και συγχρονίστηκε στο Cloud!`
+      );
     } catch {
       setDietStatus('Σφάλμα ανάγνωσης αρχείου διατροφής. Δοκίμασε επικόλληση κειμένου.');
     } finally {
+      setIsSavingDiet(false);
       if (dietFileInputRef.current) dietFileInputRef.current.value = '';
     }
   };
 
   const handlePasteDietSubmit = async () => {
     if (!pastedDietText.trim()) return;
-    const parsed = parseDietPlanFromText(pastedDietText, 'Προσωπικό_Πλάνο_Διατροφής');
-    await onSaveDietPlan(parsed);
-    setPastedDietText('');
-    setShowPasteDiet(false);
-    setDietStatus('Το πλάνο διατροφής σου αποθηκεύτηκε και οργανώθηκε σε γεύματα!');
+    setIsSavingDiet(true);
+    try {
+      const parsed = parseDietPlanFromText(pastedDietText, 'Προσωπικό_Πλάνο_Διατροφής');
+      await onSaveDietPlan(parsed);
+      const t = formatNowTime();
+      setLastSavedTime(t);
+      setPastedDietText('');
+      setShowPasteDiet(false);
+      setDietStatus(
+        `✓ ΑΠΟΘΗΚΕΥΤΗΚΕ (${t}): Το επικολλημένο πλάνο διατροφής οργανώθηκε σε γεύματα και αποθηκεύτηκε σε Συσκευή & Cloud!`
+      );
+    } finally {
+      setIsSavingDiet(false);
+    }
   };
 
   const handleLoadSampleDiet = async () => {
-    const sample = createSampleBalancedDietPlan();
-    await onSaveDietPlan(sample);
-    setDietStatus(
-      'Φορτώθηκε πλήρως το Κλινικό Πρωτόκολλο Διατροφής (Μηχανικός Κορεσμός • 94kg) με όλα τα γεύματα, τα γραμμάρια και τις σταθερές παραμέτρους!'
-    );
+    setIsSavingDiet(true);
+    try {
+      const sample = createSampleBalancedDietPlan();
+      await onSaveDietPlan(sample);
+      const t = formatNowTime();
+      setLastSavedTime(t);
+      setDietStatus(
+        `✓ ΑΥΤΟΜΑΤΗ ΑΠΟΘΗΚΕΥΣΗ (${t}): Το Κλινικό Πρωτόκολλο Διατροφής (94kg • Μηχανικός Κορεσμός) αποθηκεύτηκε στη συσκευή & στο Cloud!`
+      );
+    } finally {
+      setIsSavingDiet(false);
+    }
   };
 
   const handleSaveEditedMeal = async (idx: number) => {
     if (!dietPlan) return;
-    const updatedMeals = dietPlan.meals.map((m, i) =>
-      i === idx ? { ...m, descriptionGreek: editingMealText.trim() || m.descriptionGreek } : m
-    );
-    await onSaveDietPlan({
-      ...dietPlan,
-      meals: updatedMeals,
-    });
-    setEditingMealIndex(null);
-    setDietStatus('Το γεύμα ενημερώθηκε και συγχρονίστηκε αυτόματα!');
+    setIsSavingDiet(true);
+    try {
+      const updatedMeals = dietPlan.meals.map((m, i) =>
+        i === idx ? { ...m, descriptionGreek: editingMealText.trim() || m.descriptionGreek } : m
+      );
+      await onSaveDietPlan({
+        ...dietPlan,
+        meals: updatedMeals,
+      });
+      const t = formatNowTime();
+      setLastSavedTime(t);
+      setEditingMealIndex(null);
+      setDietStatus(`✓ ΑΠΟΘΗΚΕΥΤΗΚΕ (${t}): Η αλλαγή στο γεύμα αποθηκεύτηκε και συγχρονίστηκε!`);
+    } finally {
+      setIsSavingDiet(false);
+    }
+  };
+
+  const handleManualConfirmSaveDiet = async () => {
+    if (!dietPlan) return;
+    setIsSavingDiet(true);
+    try {
+      let planToSave = dietPlan;
+      if (editingMealIndex !== null) {
+        const updatedMeals = dietPlan.meals.map((m, i) =>
+          i === editingMealIndex
+            ? { ...m, descriptionGreek: editingMealText.trim() || m.descriptionGreek }
+            : m
+        );
+        planToSave = { ...dietPlan, meals: updatedMeals };
+        setEditingMealIndex(null);
+      }
+      await onSaveDietPlan(planToSave);
+      const t = formatNowTime();
+      setLastSavedTime(t);
+      setDietStatus(
+        `✓ ΕΠΙΒΕΒΑΙΩΜΕΝΗ ΑΠΟΘΗΚΕΥΣΗ (${t}): Ολόκληρο το πλάνο διατροφής («${planToSave.fileName}») αποθηκεύτηκε τοπικά και συγχρονίστηκε στο Cloud!`
+      );
+    } finally {
+      setIsSavingDiet(false);
+    }
   };
 
   return (
@@ -290,19 +357,30 @@ export default function GoalAndNutritionHub({
 
           {/* User's Personal Goal Box */}
           <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
                 <Target className="h-3.5 w-3.5" />
                 Ο Προσωπικός μου Στόχος:
               </span>
-              <button
-                type="button"
-                onClick={() => setIsEditingGoal((prev) => !prev)}
-                className="text-[11px] font-semibold text-emerald-400 underline hover:opacity-80"
-              >
-                {isEditingGoal ? 'Κλείσιμο' : 'Αλλαγή Στόχου'}
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                  ✓ Αποθηκευμένος
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingGoal((prev) => !prev)}
+                  className="text-[11px] font-semibold text-emerald-400 underline hover:opacity-80"
+                >
+                  {isEditingGoal ? 'Κλείσιμο' : 'Αλλαγή Στόχου'}
+                </button>
+              </div>
             </div>
+
+            {goalSavedNotice && (
+              <div className="mt-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-300">
+                {goalSavedNotice}
+              </div>
+            )}
 
             {!isEditingGoal ? (
               <div className="mt-1.5 space-y-1">
@@ -391,7 +469,7 @@ export default function GoalAndNutritionHub({
 
         {/* 3. PERSONAL DIET PLAN UPLOADER & MEAL SYNERGY */}
         <div className="min-w-0 space-y-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/95 p-4 sm:p-5 shadow-lg lg:col-span-6">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400">
                 <Utensils className="h-4 w-4" />
@@ -405,11 +483,30 @@ export default function GoalAndNutritionHub({
                 πάντα δίπλα στην άσκησή σου!
               </p>
             </div>
+
+            {dietPlan && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-extrabold text-emerald-300">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                {lastSavedTime ? `Αποθηκεύτηκε (${lastSavedTime})` : '✓ Αποθηκευμένο (Auto-Save)'}
+              </span>
+            )}
+          </div>
+
+          {/* Explicit Save Policy Explanation Banner */}
+          <div className="rounded-xl border border-emerald-500/30 bg-zinc-950 px-3 py-2 text-[11px] leading-relaxed text-zinc-300">
+            <strong className="text-emerald-400">💾 Πώς αποθηκεύεται η Διατροφή: </strong>
+            Μόλις επιλέξεις αρχείο (PDF/TXT) ή πατήσεις «Κλινικό Πρωτόκολλο»,{' '}
+            <strong className="text-zinc-100">
+              αποθηκεύεται ΑΥΤΟΜΑΤΑ στη συσκευή σου και στο Cloud
+            </strong>
+            . Αν επεξεργαστείς κάποιο γεύμα ή θέλεις χειροκίνητη επιβεβαίωση, πάτησε το κουμπί{' '}
+            <strong className="text-emerald-300">«Αποθήκευση & Συγχρονισμός Διατροφής»</strong> στο
+            τέλος της κάρτας.
           </div>
 
           {dietStatus && (
-            <div className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-3 text-xs text-emerald-300">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+            <div className="flex items-start gap-2 rounded-xl border border-emerald-500/50 bg-emerald-500/15 p-3 text-xs font-semibold text-emerald-200">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
               <span>{dietStatus}</span>
             </div>
           )}
@@ -570,6 +667,27 @@ export default function GoalAndNutritionHub({
                   </ul>
                 </div>
               )}
+
+              {/* Explicit Manual Save & Cloud Sync Button at the bottom of the Diet Card */}
+              <div className="border-t border-zinc-800 pt-2.5">
+                <button
+                  type="button"
+                  disabled={isSavingDiet}
+                  onClick={handleManualConfirmSaveDiet}
+                  className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-extrabold text-zinc-950 shadow-md shadow-emerald-500/20 transition active:scale-[0.99] disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4 shrink-0" />
+                  <span>
+                    {isSavingDiet
+                      ? 'Αποθήκευση & Συγχρονισμός...'
+                      : 'Αποθήκευση & Συγχρονισμός Διατροφής (Συσκευή + Cloud)'}
+                  </span>
+                </button>
+                <p className="mt-1.5 text-center text-[10px] text-zinc-400">
+                  ✓ Το αρχείο αποθηκεύεται αυτόματα κατά το ανέβασμα. Πάτησε εδώ αν έκανες αλλαγές
+                  ή για άμεσο συγχρονισμό με τον υπολογιστή/κινητό σου.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-4 text-center text-xs text-zinc-400">
