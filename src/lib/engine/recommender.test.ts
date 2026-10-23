@@ -21,6 +21,7 @@ import {
   createSampleBalancedDietPlan,
   DEFAULT_TRANSFORMATION_GOAL,
   getDailyNutritionAndMotivation,
+  isGarbledDietPlan,
   parseDietPlanFromText,
 } from './nutritionAndMotivation';
 import {
@@ -609,6 +610,55 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       expect(res.biometricsUpdate.weight).toBe(94);
       expect(res.detectedWorkout).toBeDefined();
       expect(res.detectedWorkout?.durationMins).toBe(18);
+    });
+
+    it('decodes the user uploaded WeasyPrint PDF (CIDFont + ToUnicode + OpenType streams) with zero garbled characters and detects/heals garbled plans', async () => {
+      const fs = await import('fs');
+      const pdfPath =
+        'C:/Users/avour/.gemini/antigravity/brain/265e3f91-aa13-4e18-ba5b-c49d25cef7e0/.user_uploaded/media_1792732146488_4df23e41.pdf';
+
+      if (fs.existsSync(pdfPath)) {
+        const nodeBuf = fs.readFileSync(pdfPath);
+        const ab = nodeBuf.buffer.slice(
+          nodeBuf.byteOffset,
+          nodeBuf.byteOffset + nodeBuf.byteLength
+        );
+        const extractedText = await extractTextFromPdfBuffer(ab);
+
+        expect(extractedText).toContain('ΚΛΙΝΙΚΟ ΠΡΩΤΟΚΟΛΛΟ ΔΙΑΤΡΟΦΗΣ');
+        expect(extractedText).toContain('ΤΡΕΧΟΝ ΒΑΡΟΣ: 94KG');
+        expect(extractedText).not.toContain('endstream');
+        expect(extractedText).not.toContain('/Subtype');
+        expect(extractedText).not.toContain('\uFFFD');
+
+        const plan = parseDietPlanFromText(extractedText, 'Κλινικό_Πρωτόκολλο.pdf');
+        expect(isGarbledDietPlan(plan)).toBe(false);
+        expect(plan.detectedWeightKg).toBe(94);
+        expect(plan.meals.length).toBe(5);
+        expect(plan.meals[0].descriptionGreek).toContain('1 φέτα ψωμί ολικής άλεσης');
+        expect(plan.meals[0].descriptionGreek).toContain('1 φέτα τυρί Adoro light');
+        expect(plan.meals[0].descriptionGreek).toContain('2 ολόκληρα βραστά αυγά');
+        expect(plan.meals[1].descriptionGreek).toContain('1 κεσεδάκι γιαούρτι 2%');
+        expect(plan.meals[2].descriptionGreek).toContain('Κοτόπουλο / Κουνέλι');
+        expect(plan.meals[2].descriptionGreek).toContain('Μοσχάρι (Άπαχο)');
+        expect(plan.meals[2].descriptionGreek).toContain('Τόνος σε Νερό');
+        expect(plan.meals[3].descriptionGreek).toContain('Φακές, Μαυρομάτικα, Ρεβίθια');
+        expect(plan.meals[3].descriptionGreek).toContain('Πένες Ολικής');
+        expect(plan.meals[4].descriptionGreek).toContain('200g τυρί Cottage');
+      }
+
+      // Also verify that isGarbledDietPlan catches previously corrupted plans
+      const corruptedPlan = {
+        ...createClinicalSatietyDietPlan(),
+        meals: [
+          {
+            slotLabelGreek: 'Πρωινό Γεύμα',
+            descriptionGreek: 'IKNO 4S; endstream endobj <</Subtype /OpenType>>',
+            movementSynergyGreek: '',
+          },
+        ],
+      };
+      expect(isGarbledDietPlan(corruptedPlan)).toBe(true);
     });
   });
 });

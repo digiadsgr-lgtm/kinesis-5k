@@ -11,6 +11,11 @@ import {
   importDatabaseJson,
   recordLocalModificationTime,
 } from './db';
+import {
+  createClinicalSatietyDietPlan,
+  isGarbledDietPlan,
+  UploadedDietPlan,
+} from '@/lib/engine/nutritionAndMotivation';
 
 const SYNC_KEY_STORAGE = 'kinesis_personal_sync_key_v1';
 const PAIRED_STATUS_STORAGE = 'kinesis_is_paired_device_v1';
@@ -229,6 +234,15 @@ export function mergeKinesisSnapshots(
     lastCheckIn: primary.progression.lastCheckIn || secondary.progression.lastCheckIn,
   };
 
+  const rawPrimaryDiet = primary.uploadedDietPlan as UploadedDietPlan | null | undefined;
+  const rawSecondaryDiet = secondary.uploadedDietPlan as UploadedDietPlan | null | undefined;
+  let chosenDiet = rawPrimaryDiet ?? rawSecondaryDiet ?? null;
+  if (rawPrimaryDiet && isGarbledDietPlan(rawPrimaryDiet) && rawSecondaryDiet && !isGarbledDietPlan(rawSecondaryDiet)) {
+    chosenDiet = rawSecondaryDiet;
+  } else if (chosenDiet && isGarbledDietPlan(chosenDiet)) {
+    chosenDiet = createClinicalSatietyDietPlan(chosenDiet.fileName);
+  }
+
   return {
     schemaVersion: primary.schemaVersion || '1.1.0',
     exportedAt: new Date(Math.max(localTime, remoteTime, Date.now())).toISOString(),
@@ -239,7 +253,7 @@ export function mergeKinesisSnapshots(
     rejections: mergedRejections,
     pdfHistory: mergedPdfHistory,
     transformationGoal: primary.transformationGoal ?? secondary.transformationGoal,
-    uploadedDietPlan: primary.uploadedDietPlan ?? secondary.uploadedDietPlan,
+    uploadedDietPlan: chosenDiet,
     smartwatchHistory: mergedSmartwatchHistory,
   };
 }

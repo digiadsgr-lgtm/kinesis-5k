@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Apple,
   CheckCircle2,
@@ -24,8 +24,10 @@ import {
 } from '@/types/kinesis';
 import {
   calculateAthleticMachineProgress,
+  createClinicalSatietyDietPlan,
   createSampleBalancedDietPlan,
   getDailyNutritionAndMotivation,
+  isGarbledDietPlan,
   parseDietPlanFile,
   parseDietPlanFromText,
   PersonalTransformationGoal,
@@ -71,6 +73,13 @@ export default function GoalAndNutritionHub({
   const [editingMealIndex, setEditingMealIndex] = useState<number | null>(null);
   const [editingMealText, setEditingMealText] = useState<string>('');
   const dietFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (dietPlan && isGarbledDietPlan(dietPlan)) {
+      const healed = createClinicalSatietyDietPlan(dietPlan.fileName);
+      onSaveDietPlan(healed);
+    }
+  }, [dietPlan, onSaveDietPlan]);
 
   const dailyTip = getDailyNutritionAndMotivation(
     progression.currentStage,

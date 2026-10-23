@@ -278,7 +278,11 @@ export async function parseDietPlanFile(file: File): Promise<UploadedDietPlan> {
     return createClinicalSatietyDietPlan(file.name);
   }
 
-  return parseDietPlanFromText(text, file.name);
+  const parsed = parseDietPlanFromText(text, file.name);
+  if (isGarbledDietPlan(parsed)) {
+    return createClinicalSatietyDietPlan(file.name);
+  }
+  return parsed;
 }
 
 const SECTION_DEFINITIONS = [
@@ -327,7 +331,31 @@ const SECTION_DEFINITIONS = [
 ] as const;
 
 const IGNORE_NOISE_LINE =
-  /^(?:1\.\s*ΣΤΑΘΕΡΟΣ\s*ΗΜΕΡΗΣΙΟΣ\s*ΚΟΡΜΟΣ(?:\s*\([^)]*\))?|ΕΠΙΛΟΓΗ\s+ΩΜΟ|ΚΛΙΝΙΚΟ\s*ΠΡΩΤΟΚΟΛΛΟ\s*ΔΙΑΤΡΟΦΗΣ|ΣΤΟΧΟΣ\s*:|[•\-–\s]+)$/i;
+  /^(?:1\.\s*ΣΤΑΘΕΡΟΣ\s*ΗΜΕΡΗΣΙΟΣ\s*ΚΟΡΜΟΣ(?:\s*\([^)]*\))?|ΕΠΙΛΟΓΗ\s+ΩΜΟ.*|ΚΛΙΝΙΚΟ\s*ΠΡΩΤΟΚΟΛΛΟ\s*ΔΙΑΤΡΟΦΗΣ|ΣΤΟΧΟΣ\s*:|[•\-–\s]+)$/i;
+
+/**
+ * Detects if a previously saved UploadedDietPlan contains binary PDF/font stream garbage
+ * so it can be automatically healed on load or sync.
+ */
+export function isGarbledDietPlan(plan: UploadedDietPlan | null | undefined): boolean {
+  if (!plan) return false;
+  const combined = [
+    plan.rawSummaryGreek || '',
+    ...plan.meals.map((m) => m.descriptionGreek),
+  ].join(' ');
+
+  if (
+    combined.includes('\uFFFD') ||
+    /endstream|endobj|\/Subtype|\/FlateDecode|\/OpenType/i.test(combined)
+  ) {
+    return true;
+  }
+
+  // Count non-printable or unexpected control/symbol characters
+  const weirdChars =
+    combined.match(/[^\p{L}\p{N}\s.,:;()\-–•/%~|'"!+€&<>]/gu) || [];
+  return weirdChars.length > 6;
+}
 
 export function parseDietPlanFromText(
   rawText: string,
@@ -411,17 +439,25 @@ export function parseDietPlanFromText(
   // Format multi-line bucket items cleanly
   const formatBucket = (items: string[]): string => {
     if (items.length === 0) return '';
-    // Merge broken wrapped lines (starting with lowercase letters or parentheses) into coherent bullets
+    // Merge broken wrapped lines (starting with lowercase letters, parentheses, or continuation words) into coherent bullets
     const mergedItems: string[] = [];
     for (const item of items) {
+      const prev = mergedItems.length > 0 ? mergedItems[mergedItems.length - 1] : '';
       if (
         mergedItems.length > 0 &&
-        (/^[a-zα-ωάέήίόύώ~()]/.test(item) ||
-          mergedItems[mergedItems.length - 1].endsWith('το') ||
-          mergedItems[mergedItems.length - 1].endsWith('από') ||
-          mergedItems[mergedItems.length - 1].endsWith('κ.σ.'))
+        (/^(?:Ενυδάτωση|Αλκοόλ|Συμπλήρωμα)$/i.test(prev))
       ) {
-        mergedItems[mergedItems.length - 1] = `${mergedItems[mergedItems.length - 1]} ${item}`;
+        mergedItems[mergedItems.length - 1] = `${prev}: ${item}`;
+      } else if (
+        mergedItems.length > 0 &&
+        (/^[a-zα-ωάέήίόύώ~()]/.test(item) ||
+          /^(?:Κονσέρβες|Συνοδεύονται)/i.test(item) ||
+          prev.endsWith('το') ||
+          prev.endsWith('από') ||
+          prev.endsWith('κ.σ.') ||
+          /-\s*\d+$/.test(prev))
+      ) {
+        mergedItems[mergedItems.length - 1] = `${prev} ${item}`;
       } else {
         mergedItems.push(item);
       }
@@ -474,7 +510,10 @@ export function parseDietPlanFromText(
     );
   }
 
-  const parametersList = buckets.parameters.length > 0 ? buckets.parameters : undefined;
+  const formattedParamsRaw = formatBucket(buckets.parameters);
+  const parametersList = formattedParamsRaw
+    ? formattedParamsRaw.split('\n').map((s) => s.replace(/^•\s*/, '').trim())
+    : undefined;
   const hydrationRule =
     biochemicalInstructionGreek ||
     (parametersList && parametersList.length > 0

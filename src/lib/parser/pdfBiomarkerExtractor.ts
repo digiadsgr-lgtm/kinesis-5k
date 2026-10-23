@@ -83,13 +83,14 @@ function parseToUnicodeCMap(streamText: string, glyphMap: Map<number, string>): 
 }
 
 /**
- * Decodes PDF hex strings — supports UTF-16BE (with or without FEFF), ToUnicode CMap glyph IDs,
- * UTF-8, and single-byte Greek (ISO-8859-7 / Windows-1253).
+ * Decodes PDF hex strings — supports UTF-16BE (with FEFF BOM), ToUnicode CMap glyph IDs,
+ * UTF-16BE without BOM, UTF-8, and single-byte Greek (ISO-8859-7 / Windows-1253).
  */
 function decodePdfHexString(hex: string, glyphMap?: Map<number, string>): string {
   const clean = hex.replace(/\s+/g, '');
   if (clean.length === 0) return '';
 
+  // 1. Explicit UTF-16BE BOM (FEFF)
   if (clean.toUpperCase().startsWith('FEFF')) {
     let out = '';
     for (let i = 4; i + 3 < clean.length; i += 4) {
@@ -101,7 +102,45 @@ function decodePdfHexString(hex: string, glyphMap?: Map<number, string>): string
     return out;
   }
 
-  // Check if 2-byte UTF-16BE (without BOM) containing Greek (0370-03FF) or ASCII (0020-007E)
+  // 2. When the PDF has /ToUnicode CMap tables (e.g. WeasyPrint, Chrome, Word, Quartz CIDFonts),
+  // ALWAYS check 2-byte and 1-byte CMap lookup BEFORE raw UTF-16BE!
+  if (glyphMap && glyphMap.size > 0) {
+    if (clean.length % 4 === 0) {
+      let cmapOut = '';
+      let mappedCount = 0;
+      const totalChars = clean.length / 4;
+      for (let i = 0; i + 3 < clean.length; i += 4) {
+        const gid = parseInt(clean.slice(i, i + 4), 16);
+        const mapped = glyphMap.get(gid);
+        if (mapped !== undefined) {
+          cmapOut += mapped;
+          mappedCount++;
+        }
+      }
+      if (mappedCount > 0 && mappedCount / totalChars >= 0.4) {
+        return cmapOut;
+      }
+    }
+
+    if (clean.length % 2 === 0) {
+      let cmapOut1 = '';
+      let mappedCount1 = 0;
+      const total1 = clean.length / 2;
+      for (let i = 0; i + 1 < clean.length; i += 2) {
+        const gid = parseInt(clean.slice(i, i + 2), 16);
+        const mapped = glyphMap.get(gid);
+        if (mapped !== undefined) {
+          cmapOut1 += mapped;
+          mappedCount1++;
+        }
+      }
+      if (mappedCount1 > 0 && mappedCount1 / total1 >= 0.5) {
+        return cmapOut1;
+      }
+    }
+  }
+
+  // 3. Check if 2-byte UTF-16BE (without BOM) containing Greek (0370-03FF) or ASCII (0020-007E)
   if (clean.length % 4 === 0) {
     let utf16Candidate = '';
     let validUtf16Count = 0;
@@ -120,41 +159,6 @@ function decodePdfHexString(hex: string, glyphMap?: Map<number, string>): string
     }
     if (totalChars > 0 && validUtf16Count / totalChars >= 0.7) {
       return utf16Candidate;
-    }
-
-    // Check 2-byte ToUnicode CMap lookup
-    if (glyphMap && glyphMap.size > 0) {
-      let cmapOut = '';
-      let mappedCount = 0;
-      for (let i = 0; i + 3 < clean.length; i += 4) {
-        const gid = parseInt(clean.slice(i, i + 4), 16);
-        const mapped = glyphMap.get(gid);
-        if (mapped) {
-          cmapOut += mapped;
-          mappedCount++;
-        }
-      }
-      if (mappedCount > 0 && mappedCount / totalChars >= 0.4) {
-        return cmapOut;
-      }
-    }
-  }
-
-  // Check 1-byte ToUnicode CMap lookup
-  if (glyphMap && glyphMap.size > 0 && clean.length % 2 === 0) {
-    let cmapOut1 = '';
-    let mappedCount1 = 0;
-    const total1 = clean.length / 2;
-    for (let i = 0; i + 1 < clean.length; i += 2) {
-      const gid = parseInt(clean.slice(i, i + 2), 16);
-      const mapped = glyphMap.get(gid);
-      if (mapped) {
-        cmapOut1 += mapped;
-        mappedCount1++;
-      }
-    }
-    if (mappedCount1 > 0 && mappedCount1 / total1 >= 0.5) {
-      return cmapOut1;
     }
   }
 
@@ -188,7 +192,8 @@ function decodePdfLiteralString(literal: string): string {
 }
 
 /**
- * Extracts readable text tokens from a decompressed PDF content stream while preserving line breaks.
+ * Extracts readable text tokens from a decompressed PDF content stream while preserving
+ * horizontal line grouping (Tm coordinates) and joining kerning chunks inside [...] TJ arrays.
  */
 function extractTextFromPdfStreamContent(
   streamText: string,
@@ -199,33 +204,82 @@ function extractTextFromPdfStreamContent(
   }
 
   const lines: string[] = [];
-  let currentLineChunks: string[] = [];
+  let curX: number | null = null;
+  let curY: number | null = null;
+  let lastX: number | null = null;
+  let lastY: number | null = null;
+
+  const appendTextRun = (rawDecoded: string, forceNewLine: boolean) => {
+    const trimmed = rawDecoded.replace(/^[•\s]+|[•\s]+$/g, '');
+    if (!trimmed) return;
+
+    const sameHorizontalLine =
+      !forceNewLine &&
+      lines.length > 0 &&
+      curY !== null &&
+      lastY !== null &&
+      curX !== null &&
+      lastX !== null &&
+      Math.abs(curY - lastY) <= 9 &&
+      curX > lastX + 4;
+
+    if (sameHorizontalLine) {
+      lines[lines.length - 1] += ' ' + trimmed;
+    } else {
+      lines.push(trimmed);
+    }
+
+    lastX = curX;
+    lastY = curY;
+  };
 
   const tokenRegex =
-    /<([0-9A-Fa-f\s]{2,})>|\((?:\\.|[^\\()])*\)|\b(Td|TD|T\*|Tm|ET)\b/g;
-  let match: RegExpExecArray | null;
-  while ((match = tokenRegex.exec(streamText)) !== null) {
-    if (match[1] !== undefined) {
-      const decoded = decodePdfHexString(match[1], glyphMap);
-      if (decoded.trim().length > 0) {
-        currentLineChunks.push(decoded);
-      }
-    } else if (match[2] !== undefined) {
-      if (currentLineChunks.length > 0) {
-        lines.push(currentLineChunks.join(' '));
-        currentLineChunks = [];
-      }
-    } else if (match[0].startsWith('(')) {
-      const inner = match[0].slice(1, -1);
-      const decoded = decodePdfLiteralString(inner);
-      if (decoded.trim().length > 0) {
-        currentLineChunks.push(decoded);
-      }
-    }
-  }
+    /([\d.-]+)\s+([\d.-]+)\s+Tm|([\d.-]+)\s+([\d.-]+)\s+T[dD]|\bT\*\b|\[([\s\S]*?)\]\s*TJ|<([0-9A-Fa-f\s]{2,})>\s*Tj|\(((?:\\.|[^\\()])*)\)\s*Tj/g;
 
-  if (currentLineChunks.length > 0) {
-    lines.push(currentLineChunks.join(' '));
+  let match: RegExpExecArray | null;
+  let forceBreakNext = false;
+
+  while ((match = tokenRegex.exec(streamText)) !== null) {
+    if (match[1] !== undefined && match[2] !== undefined) {
+      // x y Tm
+      curX = parseFloat(match[1]);
+      curY = parseFloat(match[2]);
+      forceBreakNext = false;
+    } else if (match[3] !== undefined && match[4] !== undefined) {
+      // tx ty Td / TD
+      const ty = parseFloat(match[4]);
+      if (Math.abs(ty) > 1) {
+        forceBreakNext = true;
+        curY = curY !== null ? curY - ty : null;
+      }
+    } else if (match[0] === 'T*') {
+      forceBreakNext = true;
+    } else if (match[5] !== undefined) {
+      // [...] TJ array: concatenate all kerning chunks inside the array without spaces
+      const arrayBody = match[5];
+      const innerRe = /<([0-9A-Fa-f\s]+)>|\(((?:\\.|[^\\()])*)\)/g;
+      let innerMatch: RegExpExecArray | null;
+      let joinedRun = '';
+      while ((innerMatch = innerRe.exec(arrayBody)) !== null) {
+        if (innerMatch[1] !== undefined) {
+          joinedRun += decodePdfHexString(innerMatch[1], glyphMap);
+        } else if (innerMatch[2] !== undefined) {
+          joinedRun += decodePdfLiteralString(innerMatch[2]);
+        }
+      }
+      appendTextRun(joinedRun, forceBreakNext);
+      forceBreakNext = false;
+    } else if (match[6] !== undefined) {
+      // <...> Tj
+      const decoded = decodePdfHexString(match[6], glyphMap);
+      appendTextRun(decoded, forceBreakNext);
+      forceBreakNext = false;
+    } else if (match[7] !== undefined) {
+      // (...) Tj
+      const decoded = decodePdfLiteralString(match[7]);
+      appendTextRun(decoded, forceBreakNext);
+      forceBreakNext = false;
+    }
   }
 
   return lines.join('\n');
@@ -259,6 +313,8 @@ async function tryDecompressFlate(compressed: Uint8Array): Promise<string | null
 
 /**
  * Extracts text from a PDF ArrayBuffer completely offline in Chrome, Android, and Safari.
+ * Properly skips embedded binary font/image streams (/Subtype /OpenType, /Image, /XRef, /ObjStm)
+ * and two-pass resolves /ToUnicode CMap tables before decoding page content streams.
  */
 export async function extractTextFromPdfBuffer(buffer: ArrayBuffer): Promise<string> {
   const bytes = new Uint8Array(buffer);
@@ -266,29 +322,35 @@ export async function extractTextFromPdfBuffer(buffer: ArrayBuffer): Promise<str
   const decompressedStreams: string[] = [];
   const glyphMap = new Map<number, string>();
 
-  // 1. Locate stream ... endstream blocks and decompress if FlateDecode
-  const streamMarker = 'stream';
-  const endStreamMarker = 'endstream';
-  let cursor = 0;
+  // 1. Locate << ... >> stream ... endstream blocks
+  const streamBlockRegex = /<<([\s\S]*?)>>\s*stream\r?\n/g;
+  let match: RegExpExecArray | null;
 
-  while (cursor < latin1.length) {
-    const startIdx = latin1.indexOf(streamMarker, cursor);
-    if (startIdx === -1) break;
-
-    const dictHeader = latin1.slice(Math.max(0, startIdx - 250), startIdx);
-    const isFlate = dictHeader.includes('FlateDecode');
-
-    let dataStart = startIdx + streamMarker.length;
-    if (latin1[dataStart] === '\r' && latin1[dataStart + 1] === '\n') {
-      dataStart += 2;
-    } else if (latin1[dataStart] === '\n' || latin1[dataStart] === '\r') {
-      dataStart += 1;
-    }
-
-    const endIdx = latin1.indexOf(endStreamMarker, dataStart);
+  while ((match = streamBlockRegex.exec(latin1)) !== null) {
+    const dict = match[1];
+    const dataStart = streamBlockRegex.lastIndex;
+    const endIdx = latin1.indexOf('endstream', dataStart);
     if (endIdx === -1) break;
 
-    const slice = bytes.subarray(dataStart, endIdx);
+    streamBlockRegex.lastIndex = endIdx + 9;
+
+    // Skip binary font programs, images, cross-reference tables, and object streams
+    if (
+      /\/Subtype\s*\/(?:OpenType|TrueType|Type1|Type1C|CIDFontType0C|Image)|\/Type\s*\/(?:XRef|ObjStm|Metadata)/i.test(
+        dict
+      )
+    ) {
+      continue;
+    }
+
+    // Trim trailing CR/LF before endstream if present
+    let sliceEnd = endIdx;
+    if (sliceEnd > dataStart && latin1[sliceEnd - 1] === '\n') sliceEnd--;
+    if (sliceEnd > dataStart && latin1[sliceEnd - 1] === '\r') sliceEnd--;
+
+    const slice = bytes.subarray(dataStart, sliceEnd);
+    const isFlate = dict.includes('FlateDecode');
+
     if (isFlate) {
       const decompressed = await tryDecompressFlate(slice);
       if (decompressed) {
@@ -296,34 +358,39 @@ export async function extractTextFromPdfBuffer(buffer: ArrayBuffer): Promise<str
         decompressedStreams.push(decompressed);
       }
     } else {
-      const rawSliceText = new TextDecoder('latin1').decode(slice);
+      let rawSliceText = '';
+      try {
+        rawSliceText = new TextDecoder('utf-8', { fatal: true }).decode(slice);
+      } catch {
+        rawSliceText = new TextDecoder('latin1').decode(slice);
+      }
       parseToUnicodeCMap(rawSliceText, glyphMap);
       decompressedStreams.push(rawSliceText);
     }
-
-    cursor = endIdx + endStreamMarker.length;
   }
 
-  // 2. Also check uncompressed UTF-8 text in raw buffer
+  // 2. Pass 2: Extract text from all content streams using the populated glyphMap
   const collectedParts: string[] = [];
-  try {
-    const utf8Raw = new TextDecoder('utf-8').decode(bytes);
-    parseToUnicodeCMap(utf8Raw, glyphMap);
-    const extractedRaw = extractTextFromPdfStreamContent(utf8Raw, glyphMap);
-    if (extractedRaw.trim().length > 0) {
-      collectedParts.push(extractedRaw);
-    }
-  } catch {
-    // ignore
-  }
-
   for (const streamContent of decompressedStreams) {
+    if (streamContent.includes('beginbfchar') || streamContent.includes('beginbfrange')) {
+      continue;
+    }
     const extracted = extractTextFromPdfStreamContent(streamContent, glyphMap);
     if (extracted.trim().length > 0) {
       collectedParts.push(extracted);
     }
-    if (!streamContent.includes('beginbfchar') && !streamContent.includes('beginbfrange')) {
-      collectedParts.push(streamContent);
+  }
+
+  // 3. Fallback only if no PDF streams were found (e.g. plain text file renamed to .pdf)
+  if (collectedParts.length === 0 && decompressedStreams.length === 0) {
+    try {
+      const utf8Raw = new TextDecoder('utf-8').decode(bytes);
+      const extractedRaw = extractTextFromPdfStreamContent(utf8Raw, glyphMap);
+      if (extractedRaw.trim().length > 0) {
+        collectedParts.push(extractedRaw);
+      }
+    } catch {
+      // ignore
     }
   }
 

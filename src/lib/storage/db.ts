@@ -13,7 +13,9 @@ import {
 import { applyMovementToProgression } from '@/lib/engine/recommender';
 import { PdfExtractionResult } from '@/lib/parser/pdfBiomarkerExtractor';
 import {
+  createClinicalSatietyDietPlan,
   DEFAULT_TRANSFORMATION_GOAL,
+  isGarbledDietPlan,
   PersonalTransformationGoal,
   UploadedDietPlan,
 } from '@/lib/engine/nutritionAndMotivation';
@@ -291,15 +293,23 @@ export async function saveTransformationGoal(
 }
 
 export async function getUploadedDietPlan(): Promise<UploadedDietPlan | null> {
-  return getKv<UploadedDietPlan | null>('uploaded_diet_plan', null);
+  const plan = await getKv<UploadedDietPlan | null>('uploaded_diet_plan', null);
+  if (plan && isGarbledDietPlan(plan)) {
+    const healed = createClinicalSatietyDietPlan(plan.fileName);
+    await setKv('uploaded_diet_plan', healed);
+    return healed;
+  }
+  return plan;
 }
 
 export async function saveUploadedDietPlan(
   plan: UploadedDietPlan | null
 ): Promise<UploadedDietPlan | null> {
-  await setKv('uploaded_diet_plan', plan);
+  const safePlan =
+    plan && isGarbledDietPlan(plan) ? createClinicalSatietyDietPlan(plan.fileName) : plan;
+  await setKv('uploaded_diet_plan', safePlan);
   triggerBackgroundCloudSync();
-  return plan;
+  return safePlan;
 }
 
 export async function getSmartwatchSyncHistory(): Promise<SmartwatchSyncResult[]> {
@@ -345,6 +355,11 @@ export async function getKinesisSnapshot(): Promise<KinesisDatabaseDump> {
 
   const localTs = getLocalModificationTime() || new Date().toISOString();
 
+  const safeDietPlan =
+    uploadedDietPlan && isGarbledDietPlan(uploadedDietPlan)
+      ? createClinicalSatietyDietPlan(uploadedDietPlan.fileName)
+      : uploadedDietPlan;
+
   return {
     schemaVersion: SCHEMA_VERSION,
     exportedAt: localTs,
@@ -355,7 +370,7 @@ export async function getKinesisSnapshot(): Promise<KinesisDatabaseDump> {
     rejections: sortedRejections,
     pdfHistory,
     transformationGoal,
-    uploadedDietPlan,
+    uploadedDietPlan: safeDietPlan,
     smartwatchHistory,
   };
 }
