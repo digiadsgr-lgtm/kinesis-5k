@@ -72,7 +72,7 @@ export default function ProgressAndBehaviorPage() {
 
       {/* 100% Responsive 2-Column Layout on Desktop, 1-Column on Mobile */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
-        <div className="space-y-5 lg:col-span-5">
+        <div className="min-w-0 space-y-5 lg:col-span-5">
           {/* Dual Progression Bars Card */}
           <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 shadow-lg">
             <div>
@@ -167,7 +167,7 @@ export default function ProgressAndBehaviorPage() {
         </div>
 
         {/* State-Driven Stages 0 -> 5 */}
-        <section className="space-y-2.5 lg:col-span-7">
+        <section className="min-w-0 space-y-2.5 lg:col-span-7">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-bold text-zinc-100">
               Στάδια Μετάβασης (Stage 0 → Stage 5)

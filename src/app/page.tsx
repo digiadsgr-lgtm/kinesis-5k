@@ -685,7 +685,7 @@ export default function TodayCommandCenter() {
       {/* 100% RESPONSIVE 12-COLUMN GRID (Single column on Mobile, 2 columns on Desktop) */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
         {/* LEFT COLUMN (Mobile Top): Stage Status & Quick Check-In Controls */}
-        <div className="space-y-4 lg:col-span-5 lg:sticky lg:top-20">
+        <div className="min-w-0 space-y-4 lg:col-span-5 lg:sticky lg:top-20">
           {/* Top Status Header */}
           <header className="rounded-2xl border border-zinc-800/90 bg-zinc-900/95 p-4 shadow-lg">
             <div className="flex items-start justify-between gap-2">
@@ -944,7 +944,7 @@ export default function TodayCommandCenter() {
         </div>
 
         {/* RIGHT COLUMN: Primary Recommendation Card & Equipment-Free Workout Library */}
-        <div className="space-y-5 lg:col-span-7">
+        <div className="min-w-0 space-y-5 lg:col-span-7">
           {/* PROMINENT PRIMARY RECOMMENDATION CARD ("Το Επόμενο Βήμα") */}
           <section
             id="proposal-section"
@@ -1068,12 +1068,12 @@ export default function TodayCommandCenter() {
               <Dumbbell className="h-5 w-5 shrink-0 text-emerald-400" />
             </div>
 
-            {/* Category Filter Pills (Wrap on Desktop, Scroll on Mobile) */}
-            <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap">
+            {/* Category Filter Pills (Clean Responsive Wrap on Mobile & Desktop) */}
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
               <button
                 type="button"
                 onClick={() => setSelectedHomeCategory('all')}
-                className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition ${
+                className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
                   selectedHomeCategory === 'all'
                     ? 'bg-emerald-500 text-zinc-950'
                     : 'border border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700'
@@ -1086,7 +1086,7 @@ export default function TodayCommandCenter() {
                   key={cat}
                   type="button"
                   onClick={() => setSelectedHomeCategory(cat)}
-                  className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition ${
+                  className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
                     selectedHomeCategory === cat
                       ? 'bg-emerald-500 text-zinc-950'
                       : 'border border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700'

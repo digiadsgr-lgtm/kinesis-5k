@@ -122,7 +122,7 @@ export default function QuickLogPage() {
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
         <form
           onSubmit={handleSubmit}
-          className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 lg:col-span-6"
+          className="min-w-0 space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 lg:col-span-6"
         >
           <div>
             <label className="block text-xs font-semibold text-zinc-300">
@@ -218,7 +218,7 @@ export default function QuickLogPage() {
         </form>
 
         {/* Recent Logs */}
-        <section className="space-y-2.5 lg:col-span-6">
+        <section className="min-w-0 space-y-2.5 lg:col-span-6">
           <h2 className="text-sm font-bold text-zinc-200">
             Πρόσφατο Ιστορικό Κινήσεων ({logs.length})
           </h2>

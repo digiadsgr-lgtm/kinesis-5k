@@ -494,9 +494,9 @@ export default function SettingsAndBackupPage() {
             type="button"
             disabled={isRunningSuite}
             onClick={handleRunFullDiagnosticSuite}
-            className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-extrabold text-zinc-950 shadow-md shadow-emerald-500/20 transition active:scale-95 disabled:opacity-50"
+            className="inline-flex min-h-[42px] w-full justify-center sm:w-auto items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-extrabold text-zinc-950 shadow-md shadow-emerald-500/20 transition active:scale-95 disabled:opacity-50"
           >
-            <ShieldCheck className="h-4 w-4" />
+            <ShieldCheck className="h-4 w-4 shrink-0" />
             {isRunningSuite
               ? 'Έλεγχος 6 Υποσυστημάτων...'
               : 'Έλεγχος Όλων των Λειτουργιών (6/6)'}
@@ -860,7 +860,7 @@ export default function SettingsAndBackupPage() {
       {(activeTab === 'all' || activeTab === 'backup') && (
         <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
           {/* Left: Privacy & Multi-Profile Isolation */}
-          <section className="space-y-3.5 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 lg:col-span-6">
+          <section className="min-w-0 space-y-3.5 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 lg:col-span-6">
             <div className="flex items-center gap-2 text-emerald-400">
               <Lock className="h-4 w-4" />
               <h2 className="text-sm font-bold text-zinc-100">
@@ -929,7 +929,7 @@ export default function SettingsAndBackupPage() {
           </section>
 
           {/* Right: JSON Backup, Demo Seed & Reset */}
-          <div className="space-y-5 lg:col-span-6">
+          <div className="min-w-0 space-y-5 lg:col-span-6">
             <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5">
               <h2 className="text-sm font-bold text-zinc-100">
                 1-Click Αντίγραφο Ασφαλείας Αρχείου (JSON Export / Import)

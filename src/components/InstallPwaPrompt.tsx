@@ -412,12 +412,12 @@ export default function InstallPwaPrompt() {
       )}
 
       {/* Sleek Top Utility Bar: Brand, Live Sync Code, Eye-Comfort Day/Night, Cross-Device Sync & Install */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-800/90 bg-zinc-900/95 px-3.5 py-2.5 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-zinc-950 shadow-sm">
+      <div className="mb-4 flex flex-col gap-2.5 rounded-2xl border border-zinc-800/90 bg-zinc-900/95 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-zinc-950 shadow-sm">
             <Zap className="h-4 w-4 fill-current" />
           </div>
-          <div className="text-xs">
+          <div className="min-w-0 flex-1 text-xs">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="font-extrabold tracking-tight text-zinc-50">
                 KINESIS <span className="text-emerald-400">5K</span>
@@ -430,7 +430,7 @@ export default function InstallPwaPrompt() {
                   setConnectedDevices(getConnectedCloudDevices());
                   setShowSyncModal(true);
                 }}
-                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[10px] font-bold transition ${
+                className={`inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[10px] font-bold transition ${
                   connectedDevices.length >= 2
                     ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'
                     : 'border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25'
@@ -438,43 +438,49 @@ export default function InstallPwaPrompt() {
                 title="Κατάσταση Συγχρονισμού Κινητού ↔ PC"
               >
                 <span
-                  className={`h-1.5 w-1.5 rounded-full ${
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                     connectedDevices.length >= 2 ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'
                   }`}
                 />
-                {syncKey || '...'} •{' '}
-                {connectedDevices.length >= 2
-                  ? `Συνδεδεμένο (${connectedDevices.length} συσκευές)`
-                  : '1 συσκευή (Πάτησε για σύνδεση)'}
+                <span className="truncate">
+                  {syncKey || '...'} •{' '}
+                  {connectedDevices.length >= 2
+                    ? `Sync (${connectedDevices.length} συσκευές)`
+                    : '1 συσκευή (Σύνδεση)'}
+                </span>
               </button>
               {lastSyncedTime && (
-                <span className="hidden text-[10px] text-zinc-400 md:inline">
+                <span className="hidden text-[10px] text-zinc-400 lg:inline">
                   • Sync {lastSyncedTime}
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-zinc-400">
+            <p className="mt-0.5 truncate text-[11px] text-zinc-400 sm:whitespace-normal">
               Ζωντανή γέφυρα Αιματολογικών PDF, Smartwatch, Διατροφής & Κινητού ↔ PC
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div
+          className={`grid w-full gap-1.5 sm:flex sm:w-auto sm:shrink-0 sm:items-center ${
+            !isStandalone ? 'grid-cols-3' : 'grid-cols-2'
+          }`}
+        >
           {/* Eye-Comfort Day / Night Switcher */}
           <button
             type="button"
             onClick={toggleTheme}
-            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-zinc-200 transition hover:border-emerald-500/40 active:scale-95"
+            className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-zinc-200 transition hover:border-emerald-500/40 active:scale-95"
             title="Εναλλαγή Παλέτας Ημέρας / Νύχτας (Ξεκούραστη για τα μάτια)"
           >
             {theme === 'dark' ? (
               <>
-                <Sun className="h-3.5 w-3.5 text-amber-400" />
+                <Sun className="h-3.5 w-3.5 shrink-0 text-amber-400" />
                 <span>Μέρα</span>
               </>
             ) : (
               <>
-                <Moon className="h-3.5 w-3.5 text-emerald-400" />
+                <Moon className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
                 <span>Νύχτα</span>
               </>
             )}
@@ -486,12 +492,13 @@ export default function InstallPwaPrompt() {
             onClick={() => {
               setSyncStatus(null);
               setPartnerSyncKey('');
+              setConnectedDevices(getConnectedCloudDevices());
               setShowSyncModal(true);
             }}
-            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/20 active:scale-95"
+            className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/20 active:scale-95"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>Κινητό ↔ PC</span>
+            <RefreshCw className={`h-3.5 w-3.5 shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span className="truncate">Κινητό ↔ PC</span>
           </button>
 
           {/* Mobile App Install Button */}
@@ -499,10 +506,10 @@ export default function InstallPwaPrompt() {
             <button
               type="button"
               onClick={handleInstallClick}
-              className="inline-flex min-h-[38px] items-center gap-1 rounded-xl bg-emerald-500 px-2.5 py-1.5 text-xs font-bold text-zinc-950 shadow-sm transition active:scale-95"
+              className="inline-flex min-h-[40px] items-center justify-center gap-1 rounded-xl bg-emerald-500 px-2.5 py-1.5 text-xs font-bold text-zinc-950 shadow-sm transition active:scale-95"
             >
-              <Download className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline sm:inline">Εφαρμογή</span>
+              <Download className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Εφαρμογή</span>
             </button>
           )}
         </div>

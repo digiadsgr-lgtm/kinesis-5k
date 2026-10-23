@@ -249,7 +249,7 @@ export default function GoalAndNutritionHub({
 
       {/* 2. TRANSFORMATION GOAL: FROM COUCH TO ATHLETIC MACHINE */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-        <div className="space-y-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/95 p-4 sm:p-5 shadow-lg lg:col-span-6">
+        <div className="min-w-0 space-y-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/95 p-4 sm:p-5 shadow-lg lg:col-span-6">
           <div className="flex items-start justify-between gap-2">
             <div>
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400">
@@ -390,7 +390,7 @@ export default function GoalAndNutritionHub({
         </div>
 
         {/* 3. PERSONAL DIET PLAN UPLOADER & MEAL SYNERGY */}
-        <div className="space-y-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/95 p-4 sm:p-5 shadow-lg lg:col-span-6">
+        <div className="min-w-0 space-y-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/95 p-4 sm:p-5 shadow-lg lg:col-span-6">
           <div className="flex items-start justify-between gap-2">
             <div>
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400">
@@ -398,7 +398,7 @@ export default function GoalAndNutritionHub({
                 Η Διατροφή Μου & Καύσιμο Κίνησης
               </span>
               <h3 className="mt-1 text-base font-bold text-zinc-50">
-                 ανέβασε τη Διατροφή σου (PDF ή Κείμενο)
+                Ανέβασε τη Διατροφή σου (PDF ή Κείμενο)
               </h3>
               <p className="mt-0.5 text-xs text-zinc-400">
                 Έχεις πρόγραμμα από διατροφολόγο ή δική σου διατροφή; Ανέβασέ το εδώ για να το έχεις
@@ -546,7 +546,7 @@ export default function GoalAndNutritionHub({
                         </button>
                       </div>
                     ) : (
-                      <div className="mt-1 whitespace-pre-line leading-relaxed text-zinc-100">
+                      <div className="mt-1 whitespace-pre-line break-words leading-relaxed text-zinc-100">
                         {meal.descriptionGreek}
                       </div>
                     )}

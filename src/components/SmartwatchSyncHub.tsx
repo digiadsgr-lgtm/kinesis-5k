@@ -551,11 +551,11 @@ export default function SmartwatchSyncHub({
       aria-label="Σύνδεση & Άντληση από Google Health, Health Sync & Smartwatch"
       className="space-y-4 rounded-2xl border border-emerald-500/40 bg-zinc-900 p-4 sm:p-5 shadow-lg"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-            <Watch className="h-3 w-3" />
-            Google Health • Health Sync • Garmin • Samsung • Apple • Polar • Xiaomi
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <span className="inline-flex flex-wrap items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+            <Watch className="h-3 w-3 shrink-0" />
+            <span>Google Health • Health Sync • Garmin • Samsung • Apple • Polar • Xiaomi</span>
           </span>
           <h2 className="mt-1.5 text-sm font-bold text-zinc-100 sm:text-base">
             Άντληση Δεδομένων από Google Health, Health Sync ή Απευθείας από Smartwatch

@@ -677,10 +677,10 @@ export default function HealthBiomarkersHub() {
             type="button"
             onClick={handleRunHealthDiagnostics}
             disabled={isRunningHealthCheck}
-            className="inline-flex min-h-[42px] shrink-0 items-center gap-2 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-extrabold text-zinc-950 shadow-md shadow-emerald-500/20 transition active:scale-95 disabled:opacity-50"
+            className="inline-flex min-h-[42px] w-full justify-center sm:w-auto items-center gap-2 rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-extrabold text-zinc-950 shadow-md shadow-emerald-500/20 transition active:scale-95 disabled:opacity-50"
           >
             <ClipboardCheck
-              className={`h-4 w-4 ${isRunningHealthCheck ? 'animate-spin' : ''}`}
+              className={`h-4 w-4 shrink-0 ${isRunningHealthCheck ? 'animate-spin' : ''}`}
             />
             <span>
               {isRunningHealthCheck
@@ -692,7 +692,7 @@ export default function HealthBiomarkersHub() {
 
         {/* 4 Summary Status Pills */}
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-2.5">
+          <div className="min-w-0 rounded-xl border border-zinc-800 bg-zinc-950 p-2.5">
             <span className="block text-[10px] font-semibold text-zinc-400">
               Κατάσταση Safety Gate
             </span>
@@ -707,7 +707,7 @@ export default function HealthBiomarkersHub() {
             </span>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-2.5">
+          <div className="min-w-0 rounded-xl border border-zinc-800 bg-zinc-950 p-2.5">
             <span className="block text-[10px] font-semibold text-zinc-400">
               Ύπνος & Καρδιά (RHR)
             </span>
@@ -716,7 +716,7 @@ export default function HealthBiomarkersHub() {
             </span>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-2.5">
+          <div className="min-w-0 rounded-xl border border-zinc-800 bg-zinc-950 p-2.5">
             <span className="block text-[10px] font-semibold text-zinc-400">
               Βήματα & Βάρος Σήμερα
             </span>
@@ -725,7 +725,7 @@ export default function HealthBiomarkersHub() {
             </span>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-2.5">
+          <div className="min-w-0 rounded-xl border border-zinc-800 bg-zinc-950 p-2.5">
             <span className="block text-[10px] font-semibold text-zinc-400">
               Αιματολογικά PDF & Sync
             </span>
@@ -736,7 +736,7 @@ export default function HealthBiomarkersHub() {
         </div>
 
         {/* Sub-Navigation Filter Tabs */}
-        <div className="no-scrollbar mt-4 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap">
+        <div className="mt-4 flex flex-wrap gap-1.5">
           {(
             [
               { id: 'all', label: 'Όλα τα Εργαλεία Υγείας' },
@@ -753,7 +753,7 @@ export default function HealthBiomarkersHub() {
               key={tab.id}
               type="button"
               onClick={() => setActiveSubTab(tab.id)}
-              className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold transition ${
+              className={`rounded-xl px-3 py-2 text-left text-xs font-bold leading-snug transition ${
                 activeSubTab === tab.id
                   ? 'bg-emerald-500 text-zinc-950 shadow-sm'
                   : 'border border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700'
@@ -999,7 +999,7 @@ export default function HealthBiomarkersHub() {
         {/* LEFT COLUMN: Multi-PDF Lab Extractor & Direct Biomarker Data Editing */}
         {(activeSubTab === 'all' || activeSubTab === 'labs_edit') && (
           <div
-            className={`space-y-5 ${
+            className={`min-w-0 space-y-5 ${
               activeSubTab === 'labs_edit' ? 'lg:col-span-12' : 'lg:col-span-6'
             }`}
           >
@@ -1302,7 +1302,7 @@ export default function HealthBiomarkersHub() {
           activeSubTab === 'wearables' ||
           activeSubTab === 'labs_edit') && (
           <div
-            className={`space-y-5 ${
+            className={`min-w-0 space-y-5 ${
               activeSubTab === 'wearables' ? 'lg:col-span-12' : 'lg:col-span-6'
             }`}
           >
