@@ -68,6 +68,8 @@ export default function GoalAndNutritionHub({
   const [showPasteDiet, setShowPasteDiet] = useState<boolean>(false);
   const [pastedDietText, setPastedDietText] = useState<string>('');
   const [dietStatus, setDietStatus] = useState<string | null>(null);
+  const [editingMealIndex, setEditingMealIndex] = useState<number | null>(null);
+  const [editingMealText, setEditingMealText] = useState<string>('');
   const dietFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const dailyTip = getDailyNutritionAndMotivation(
@@ -154,8 +156,21 @@ export default function GoalAndNutritionHub({
     const sample = createSampleBalancedDietPlan();
     await onSaveDietPlan(sample);
     setDietStatus(
-      'Φορτώθηκε το Έτοιμο Πλάνο Κορεσμού & Ενέργειας (ειδικά σχεδιασμένο για να κόβει το βραδινό τσιμπολόγημα)!'
+      'Φορτώθηκε πλήρως το Κλινικό Πρωτόκολλο Διατροφής (Μηχανικός Κορεσμός • 94kg) με όλα τα γεύματα, τα γραμμάρια και τις σταθερές παραμέτρους!'
     );
+  };
+
+  const handleSaveEditedMeal = async (idx: number) => {
+    if (!dietPlan) return;
+    const updatedMeals = dietPlan.meals.map((m, i) =>
+      i === idx ? { ...m, descriptionGreek: editingMealText.trim() || m.descriptionGreek } : m
+    );
+    await onSaveDietPlan({
+      ...dietPlan,
+      meals: updatedMeals,
+    });
+    setEditingMealIndex(null);
+    setDietStatus('Το γεύμα ενημερώθηκε και συγχρονίστηκε αυτόματα!');
   };
 
   return (
@@ -406,10 +421,10 @@ export default function GoalAndNutritionHub({
             <button
               type="button"
               onClick={handleLoadSampleDiet}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-xs font-bold text-zinc-100 hover:bg-zinc-700"
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-2.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
             >
               <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-              Έτοιμο Πλάνο Χωρίς Πείνα
+              Κλινικό Πρωτόκολλο (94kg • Κορεσμός)
             </button>
           </div>
 
@@ -440,11 +455,11 @@ export default function GoalAndNutritionHub({
           {showPasteDiet && (
             <div className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
               <textarea
-                rows={4}
+                rows={6}
                 value={pastedDietText}
                 onChange={(e) => setPastedDietText(e.target.value)}
                 placeholder={
-                  'π.χ.\nΠρωινό: Γιαούρτι με βρώμη\nΜεσημεριανό: Κοτόπουλο με σαλάτα\nΑπογευματινό: 1 μπανάνα\nΒραδινό: Ομελέτα με 2 αυγά'
+                  'Επικόλλησε εδώ ολόκληρο το κείμενο της διατροφής σου (π.χ. ΠΡΩΙΝΟ, ΣΝΑΚ ΓΡΑΦΕΙΟΥ, ΚΥΡΙΩΣ ΓΕΥΜΑ, ΟΣΠΡΙΑ & ΥΔΑΤΑΝΘΡΑΚΕΣ, ΒΡΑΔΙΝΟ, ΣΤΑΘΕΡΕΣ ΠΑΡΑΜΕΤΡΟΙ)...'
                 }
                 className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none"
               />
@@ -453,19 +468,33 @@ export default function GoalAndNutritionHub({
                 onClick={handlePasteDietSubmit}
                 className="w-full rounded-lg bg-emerald-500 py-2 text-xs font-bold text-zinc-950"
               >
-                Αποθήκευση Γευμάτων
+                Αναγνώριση & Αποθήκευση Όλων των Γευμάτων
               </button>
             </div>
           )}
 
           {dietPlan ? (
-            <div className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-emerald-400">
-                  Ενεργό Πλάνο: {dietPlan.fileName}
-                </span>
+            <div className="space-y-2.5 rounded-xl border border-zinc-800 bg-zinc-950 p-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-emerald-400">
+                    Ενεργό Πλάνο: {dietPlan.fileName}
+                  </span>
+                  {dietPlan.detectedWeightKg && (
+                    <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                      Βάρος Πρωτοκόλλου: {dietPlan.detectedWeightKg} kg
+                    </span>
+                  )}
+                </div>
                 <span className="text-[10px] text-zinc-500">{dietPlan.uploadedAt}</span>
               </div>
+
+              {dietPlan.biochemicalInstructionGreek && (
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-[11px] leading-relaxed text-zinc-200">
+                  <strong className="text-emerald-400">Βιοχημική Οδηγία Κορεσμού: </strong>
+                  {dietPlan.biochemicalInstructionGreek}
+                </div>
+              )}
 
               <div className="space-y-2 pt-1">
                 {dietPlan.meals.map((meal, idx) => (
@@ -473,20 +502,71 @@ export default function GoalAndNutritionHub({
                     key={idx}
                     className="rounded-lg border border-zinc-800/90 bg-zinc-900/90 p-2.5 text-xs"
                   >
-                    <div className="font-bold text-emerald-400">{meal.slotLabelGreek}</div>
-                    <div className="mt-0.5 text-zinc-100">{meal.descriptionGreek}</div>
-                    <div className="mt-1 text-[10px] text-zinc-400">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-emerald-400">{meal.slotLabelGreek}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editingMealIndex === idx) {
+                            setEditingMealIndex(null);
+                          } else {
+                            setEditingMealIndex(idx);
+                            setEditingMealText(meal.descriptionGreek);
+                          }
+                        }}
+                        className="text-[10px] font-semibold text-zinc-400 underline hover:text-emerald-400"
+                      >
+                        {editingMealIndex === idx ? 'Ακύρωση' : 'Επεξεργασία'}
+                      </button>
+                    </div>
+
+                    {editingMealIndex === idx ? (
+                      <div className="mt-2 space-y-1.5">
+                        <textarea
+                          rows={3}
+                          value={editingMealText}
+                          onChange={(e) => setEditingMealText(e.target.value)}
+                          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 p-2 text-xs text-zinc-100 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveEditedMeal(idx)}
+                          className="rounded-lg bg-emerald-500 px-3 py-1 text-[11px] font-bold text-zinc-950"
+                        >
+                          Αποθήκευση Γεύματος
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-1 whitespace-pre-line leading-relaxed text-zinc-100">
+                        {meal.descriptionGreek}
+                      </div>
+                    )}
+
+                    <div className="mt-1.5 text-[10px] text-zinc-400">
                       ⚡ {meal.movementSynergyGreek}
                     </div>
                   </div>
                 ))}
               </div>
+
+              {dietPlan.parametersGreek && dietPlan.parametersGreek.length > 0 && (
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-2.5 text-[11px] text-zinc-300">
+                  <div className="font-bold text-emerald-400">4. Σταθερές Παράμετροι Ημέρας:</div>
+                  <ul className="mt-1 space-y-0.5 pl-4">
+                    {dietPlan.parametersGreek.map((p, i) => (
+                      <li key={i} className="list-disc">
+                        {p}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           ) : (
             <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-4 text-center text-xs text-zinc-400">
-              Δεν έχεις ανεβάσει ακόμα διατροφή. Ανέβασε το PDF/αρχείο του διατροφολόγου σου ή
-              πάτησε <strong>«Έτοιμο Πλάνο Χωρίς Πείνα»</strong> για να δεις πώς συνδυάζεται το
-              φαγητό με την κίνηση!
+              Δεν έχεις ανεβάσει ακόμα διατροφή. Ανέβασε το PDF/αρχείο σου ή πάτησε{' '}
+              <strong>«Κλινικό Πρωτόκολλο (94kg • Κορεσμός)»</strong> για να φορτώσεις αμέσως το
+              πλήρες πρωτόκολλό σου!
             </div>
           )}
         </div>

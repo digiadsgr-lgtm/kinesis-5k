@@ -68,31 +68,55 @@ function parseSmartwatchJson(data: unknown, sourceName: string): SmartwatchSyncR
     return Number.isFinite(n) && n > 0 ? n : undefined;
   };
 
-  const rhr = num(obj.rhr ?? obj.restingHeartRate ?? obj.resting_heart_rate ?? obj.heartRate);
+  const rhr = num(
+    obj.rhr ??
+      obj.restingHeartRate ??
+      obj.resting_heart_rate ??
+      obj.heartRate ??
+      obj['com.google.heart_rate.bpm'] ??
+      obj.bpm
+  );
   if (rhr && rhr >= 35 && rhr <= 130) {
     biometricsUpdate.rhr = Math.round(rhr);
     summaryGreek.push(`Παλμοί Ηρεμίας: ${biometricsUpdate.rhr} bpm`);
   }
 
-  const hrv = num(obj.hrv ?? obj.heartRateVariability ?? obj.rmssd);
+  const hrv = num(
+    obj.hrv ?? obj.heartRateVariability ?? obj.rmssd ?? obj['com.google.heart_rate.variability']
+  );
   if (hrv && hrv >= 10 && hrv <= 220) {
     biometricsUpdate.hrv = Math.round(hrv);
     summaryGreek.push(`Ξεκούραση Καρδιάς (HRV): ${biometricsUpdate.hrv} ms`);
   }
 
-  const sleep = num(obj.sleepScore ?? obj.sleep_score ?? obj.sleep);
+  const sleep = num(
+    obj.sleepScore ??
+      obj.sleep_score ??
+      obj.sleep ??
+      obj['com.google.sleep.segment'] ??
+      obj.sleepEfficiency
+  );
   if (sleep && sleep >= 10 && sleep <= 100) {
     biometricsUpdate.sleepScore = Math.round(sleep);
     summaryGreek.push(`Ποιότητα Ύπνου: ${biometricsUpdate.sleepScore}/100`);
   }
 
-  const steps = num(obj.steps ?? obj.stepsSoFar ?? obj.stepCount ?? obj.dailySteps);
+  const steps = num(
+    obj.steps ??
+      obj.stepsSoFar ??
+      obj.stepCount ??
+      obj.dailySteps ??
+      obj['com.google.step_count.delta'] ??
+      obj.step_count
+  );
   if (steps !== undefined && steps >= 0 && steps <= 100000) {
     biometricsUpdate.stepsSoFar = Math.round(steps);
     summaryGreek.push(`Βήματα Ημέρας: ${biometricsUpdate.stepsSoFar}`);
   }
 
-  const weight = num(obj.weight ?? obj.bodyMass ?? obj.weightKg);
+  const weight = num(
+    obj.weight ?? obj.bodyMass ?? obj.weightKg ?? obj['com.google.weight'] ?? obj.weight_kg
+  );
   if (weight && weight >= 30 && weight <= 250) {
     biometricsUpdate.weight = Number(weight.toFixed(1));
     summaryGreek.push(`Βάρος: ${biometricsUpdate.weight} kg`);
@@ -278,8 +302,24 @@ function parseSmartwatchTextOrCsv(text: string, sourceName: string): SmartwatchS
  * file upload or 1-click smartwatch sync immediately.
  */
 export function createSampleSmartwatchTcx(
-  scenario: 'morning_recovery' | 'walk_run_workout' = 'walk_run_workout'
+  scenario: 'morning_recovery' | 'walk_run_workout' | 'google_health_sync' = 'walk_run_workout'
 ): string {
+  if (scenario === 'google_health_sync') {
+    return JSON.stringify(
+      {
+        source: 'Google Health Connect / Health Sync Bridge',
+        'com.google.step_count.delta': 6840,
+        'com.google.heart_rate.bpm': 57,
+        'com.google.heart_rate.variability': 61,
+        'com.google.sleep.segment': 84,
+        'com.google.weight': 94.0,
+        activeMinutes: 18,
+        avgHeartRate: 118,
+      },
+      null,
+      2
+    );
+  }
   if (scenario === 'morning_recovery') {
     return JSON.stringify(
       {

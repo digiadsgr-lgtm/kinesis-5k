@@ -28,9 +28,65 @@ export interface MultiPdfExtractionSummary {
 }
 
 /**
- * Decodes PDF hex strings — supports both UTF-16BE (starting with FEFF) and single-byte Greek (ISO-8859-7 / Windows-1253).
+ * Parses PDF /ToUnicode CMap streams (beginbfchar / beginbfrange) so subsetted Greek fonts
+ * produced by Chrome, Word, Canva, or macOS Quartz decode into proper Unicode Greek text.
  */
-function decodePdfHexString(hex: string): string {
+function parseToUnicodeCMap(streamText: string, glyphMap: Map<number, string>): void {
+  if (!streamText.includes('beginbfchar') && !streamText.includes('beginbfrange')) {
+    return;
+  }
+
+  // 1. Parse beginbfchar ... endbfchar
+  const bfCharBlocks = streamText.match(/beginbfchar[\s\S]*?endbfchar/g) || [];
+  for (const block of bfCharBlocks) {
+    const pairRegex = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g;
+    let m: RegExpExecArray | null;
+    while ((m = pairRegex.exec(block)) !== null) {
+      const srcCode = parseInt(m[1], 16);
+      const dstHex = m[2];
+      let dstStr = '';
+      for (let i = 0; i + 3 < dstHex.length; i += 4) {
+        const cp = parseInt(dstHex.slice(i, i + 4), 16);
+        if (!Number.isNaN(cp) && cp > 0) dstStr += String.fromCodePoint(cp);
+      }
+      if (!dstStr && dstHex.length === 2) {
+        dstStr = String.fromCharCode(parseInt(dstHex, 16));
+      }
+      if (!Number.isNaN(srcCode) && dstStr) {
+        glyphMap.set(srcCode, dstStr);
+      }
+    }
+  }
+
+  // 2. Parse beginbfrange ... endbfrange
+  const bfRangeBlocks = streamText.match(/beginbfrange[\s\S]*?endbfrange/g) || [];
+  for (const block of bfRangeBlocks) {
+    const rangeRegex = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g;
+    let m: RegExpExecArray | null;
+    while ((m = rangeRegex.exec(block)) !== null) {
+      const startCode = parseInt(m[1], 16);
+      const endCode = parseInt(m[2], 16);
+      const targetStart = parseInt(m[3], 16);
+      if (
+        !Number.isNaN(startCode) &&
+        !Number.isNaN(endCode) &&
+        !Number.isNaN(targetStart) &&
+        endCode >= startCode &&
+        endCode - startCode <= 1024
+      ) {
+        for (let c = startCode; c <= endCode; c++) {
+          glyphMap.set(c, String.fromCodePoint(targetStart + (c - startCode)));
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Decodes PDF hex strings — supports UTF-16BE (with or without FEFF), ToUnicode CMap glyph IDs,
+ * UTF-8, and single-byte Greek (ISO-8859-7 / Windows-1253).
+ */
+function decodePdfHexString(hex: string, glyphMap?: Map<number, string>): string {
   const clean = hex.replace(/\s+/g, '');
   if (clean.length === 0) return '';
 
@@ -43,6 +99,63 @@ function decodePdfHexString(hex: string): string {
       }
     }
     return out;
+  }
+
+  // Check if 2-byte UTF-16BE (without BOM) containing Greek (0370-03FF) or ASCII (0020-007E)
+  if (clean.length % 4 === 0) {
+    let utf16Candidate = '';
+    let validUtf16Count = 0;
+    const totalChars = clean.length / 4;
+    for (let i = 0; i + 3 < clean.length; i += 4) {
+      const code = parseInt(clean.slice(i, i + 4), 16);
+      if (
+        (code >= 0x0020 && code <= 0x007e) ||
+        (code >= 0x0370 && code <= 0x03ff) ||
+        (code >= 0x1f00 && code <= 0x1fff) ||
+        (code >= 0x2000 && code <= 0x206f)
+      ) {
+        validUtf16Count++;
+      }
+      if (code > 0) utf16Candidate += String.fromCharCode(code);
+    }
+    if (totalChars > 0 && validUtf16Count / totalChars >= 0.7) {
+      return utf16Candidate;
+    }
+
+    // Check 2-byte ToUnicode CMap lookup
+    if (glyphMap && glyphMap.size > 0) {
+      let cmapOut = '';
+      let mappedCount = 0;
+      for (let i = 0; i + 3 < clean.length; i += 4) {
+        const gid = parseInt(clean.slice(i, i + 4), 16);
+        const mapped = glyphMap.get(gid);
+        if (mapped) {
+          cmapOut += mapped;
+          mappedCount++;
+        }
+      }
+      if (mappedCount > 0 && mappedCount / totalChars >= 0.4) {
+        return cmapOut;
+      }
+    }
+  }
+
+  // Check 1-byte ToUnicode CMap lookup
+  if (glyphMap && glyphMap.size > 0 && clean.length % 2 === 0) {
+    let cmapOut1 = '';
+    let mappedCount1 = 0;
+    const total1 = clean.length / 2;
+    for (let i = 0; i + 1 < clean.length; i += 2) {
+      const gid = parseInt(clean.slice(i, i + 2), 16);
+      const mapped = glyphMap.get(gid);
+      if (mapped) {
+        cmapOut1 += mapped;
+        mappedCount1++;
+      }
+    }
+    if (mappedCount1 > 0 && mappedCount1 / total1 >= 0.5) {
+      return cmapOut1;
+    }
   }
 
   const bytes = new Uint8Array(Math.floor(clean.length / 2));
@@ -75,32 +188,47 @@ function decodePdfLiteralString(literal: string): string {
 }
 
 /**
- * Extracts readable text tokens from a decompressed PDF content stream.
+ * Extracts readable text tokens from a decompressed PDF content stream while preserving line breaks.
  */
-function extractTextFromPdfStreamContent(streamText: string): string {
-  const chunks: string[] = [];
+function extractTextFromPdfStreamContent(
+  streamText: string,
+  glyphMap?: Map<number, string>
+): string {
+  if (streamText.includes('beginbfchar') || streamText.includes('beginbfrange')) {
+    return '';
+  }
 
-  // Match hex strings <...>
-  const hexRegex = /<([0-9A-Fa-f\s]{2,})>/g;
+  const lines: string[] = [];
+  let currentLineChunks: string[] = [];
+
+  const tokenRegex =
+    /<([0-9A-Fa-f\s]{2,})>|\((?:\\.|[^\\()])*\)|\b(Td|TD|T\*|Tm|ET)\b/g;
   let match: RegExpExecArray | null;
-  while ((match = hexRegex.exec(streamText)) !== null) {
-    const decoded = decodePdfHexString(match[1]);
-    if (decoded.trim().length > 0) {
-      chunks.push(decoded);
+  while ((match = tokenRegex.exec(streamText)) !== null) {
+    if (match[1] !== undefined) {
+      const decoded = decodePdfHexString(match[1], glyphMap);
+      if (decoded.trim().length > 0) {
+        currentLineChunks.push(decoded);
+      }
+    } else if (match[2] !== undefined) {
+      if (currentLineChunks.length > 0) {
+        lines.push(currentLineChunks.join(' '));
+        currentLineChunks = [];
+      }
+    } else if (match[0].startsWith('(')) {
+      const inner = match[0].slice(1, -1);
+      const decoded = decodePdfLiteralString(inner);
+      if (decoded.trim().length > 0) {
+        currentLineChunks.push(decoded);
+      }
     }
   }
 
-  // Match literal strings (...)
-  const litRegex = /\((?:\\.|[^\\()])*\)/g;
-  while ((match = litRegex.exec(streamText)) !== null) {
-    const inner = match[0].slice(1, -1);
-    const decoded = decodePdfLiteralString(inner);
-    if (decoded.trim().length > 0) {
-      chunks.push(decoded);
-    }
+  if (currentLineChunks.length > 0) {
+    lines.push(currentLineChunks.join(' '));
   }
 
-  return chunks.join(' ');
+  return lines.join('\n');
 }
 
 /**
@@ -135,17 +263,10 @@ async function tryDecompressFlate(compressed: Uint8Array): Promise<string | null
 export async function extractTextFromPdfBuffer(buffer: ArrayBuffer): Promise<string> {
   const bytes = new Uint8Array(buffer);
   const latin1 = new TextDecoder('latin1').decode(bytes);
-  const collectedParts: string[] = [];
+  const decompressedStreams: string[] = [];
+  const glyphMap = new Map<number, string>();
 
-  // 1. Check UTF-8 / Windows-1253 plain text in uncompressed objects
-  try {
-    const utf8Raw = new TextDecoder('utf-8').decode(bytes);
-    collectedParts.push(extractTextFromPdfStreamContent(utf8Raw));
-  } catch {
-    // ignore
-  }
-
-  // 2. Locate stream ... endstream blocks and decompress if FlateDecode
+  // 1. Locate stream ... endstream blocks and decompress if FlateDecode
   const streamMarker = 'stream';
   const endStreamMarker = 'endstream';
   let cursor = 0;
@@ -171,18 +292,46 @@ export async function extractTextFromPdfBuffer(buffer: ArrayBuffer): Promise<str
     if (isFlate) {
       const decompressed = await tryDecompressFlate(slice);
       if (decompressed) {
-        collectedParts.push(extractTextFromPdfStreamContent(decompressed));
-        collectedParts.push(decompressed);
+        parseToUnicodeCMap(decompressed, glyphMap);
+        decompressedStreams.push(decompressed);
       }
     } else {
       const rawSliceText = new TextDecoder('latin1').decode(slice);
-      collectedParts.push(extractTextFromPdfStreamContent(rawSliceText));
+      parseToUnicodeCMap(rawSliceText, glyphMap);
+      decompressedStreams.push(rawSliceText);
     }
 
     cursor = endIdx + endStreamMarker.length;
   }
 
-  return collectedParts.join('\n').replace(/\s+/g, ' ').trim();
+  // 2. Also check uncompressed UTF-8 text in raw buffer
+  const collectedParts: string[] = [];
+  try {
+    const utf8Raw = new TextDecoder('utf-8').decode(bytes);
+    parseToUnicodeCMap(utf8Raw, glyphMap);
+    const extractedRaw = extractTextFromPdfStreamContent(utf8Raw, glyphMap);
+    if (extractedRaw.trim().length > 0) {
+      collectedParts.push(extractedRaw);
+    }
+  } catch {
+    // ignore
+  }
+
+  for (const streamContent of decompressedStreams) {
+    const extracted = extractTextFromPdfStreamContent(streamContent, glyphMap);
+    if (extracted.trim().length > 0) {
+      collectedParts.push(extracted);
+    }
+    if (!streamContent.includes('beginbfchar') && !streamContent.includes('beginbfrange')) {
+      collectedParts.push(streamContent);
+    }
+  }
+
+  return collectedParts
+    .join('\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n')
+    .trim();
 }
 
 interface BiomarkerPatternSpec {

@@ -21,8 +21,10 @@ import {
   Zap,
 } from 'lucide-react';
 import {
+  CloudDeviceInfo,
   createCrossDeviceSyncLink,
   decodeTokenToSnapshotJson,
+  getConnectedCloudDevices,
   getPersonalSyncKey,
   mergeKinesisSnapshots,
   pairAndMergeWithDevice,
@@ -57,17 +59,21 @@ export default function InstallPwaPrompt() {
   } | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(null);
+  const [connectedDevices, setConnectedDevices] = useState<CloudDeviceInfo[]>([]);
   const [autoRestoredBanner, setAutoRestoredBanner] = useState<string | null>(null);
 
   const runSilentCloudSyncCheck = useCallback(async (keyToUse?: string) => {
     const activeKey = keyToUse || getPersonalSyncKey();
     if (!activeKey) return;
     const res = await pullProgressFromCloud(activeKey);
-    if (res.ok && res.found && res.merged) {
+    setConnectedDevices(getConnectedCloudDevices());
+    if (res.ok && res.found) {
       setLastSyncedTime(
         new Date().toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })
       );
-      window.dispatchEvent(new Event('kinesis-sync-restored'));
+      if (res.merged) {
+        window.dispatchEvent(new Event('kinesis-sync-restored'));
+      }
     }
   }, []);
 
@@ -83,6 +89,7 @@ export default function InstallPwaPrompt() {
 
     const onOpenSyncModal = () => {
       setSyncKey(getPersonalSyncKey());
+      setConnectedDevices(getConnectedCloudDevices());
       setPartnerSyncKey('');
       setSyncStatus(null);
       setShowSyncModal(true);
@@ -91,6 +98,7 @@ export default function InstallPwaPrompt() {
 
     const currentKey = getPersonalSyncKey();
     setSyncKey(currentKey);
+    setConnectedDevices(getConnectedCloudDevices());
 
     // Check if opened via a Magic Cross-Device Sync Link (?syncKey=...&syncData=...)
     const params = new URLSearchParams(window.location.search);
@@ -141,6 +149,7 @@ export default function InstallPwaPrompt() {
       // Push local state on boot so the cloud slot is always initialized, then check for remote updates
       pushProgressToCloud(currentKey).then((pushRes) => {
         if (pushRes.ok) {
+          setConnectedDevices(getConnectedCloudDevices());
           setLastSyncedTime(
             new Date().toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })
           );
@@ -237,6 +246,8 @@ export default function InstallPwaPrompt() {
       // User typed this device's own code! Explain clearly and still run a full Cloud Sync check.
       await pushProgressToCloud(currentDeviceKey);
       const pullRes = await pullProgressFromCloud(currentDeviceKey, { forceMerge: true });
+      setConnectedDevices(getConnectedCloudDevices());
+      setConnectedDevices(getConnectedCloudDevices());
       setIsSyncing(false);
       setLastSyncedTime(
         new Date().toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })
@@ -259,6 +270,7 @@ export default function InstallPwaPrompt() {
     }
 
     const res = await pairAndMergeWithDevice(trimmed);
+    setConnectedDevices(getConnectedCloudDevices());
     setIsSyncing(false);
 
     if (res.ok) {
@@ -301,6 +313,7 @@ export default function InstallPwaPrompt() {
       // 3. Read final local snapshot to verify all subsystems
       const snap = await getKinesisSnapshot();
 
+      setConnectedDevices(getConnectedCloudDevices());
       setIsSyncing(false);
       setLastSyncedTime(
         new Date().toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })
@@ -346,6 +359,7 @@ export default function InstallPwaPrompt() {
       await pushProgressToCloud(syncKey);
       const link = await createCrossDeviceSyncLink();
       await navigator.clipboard.writeText(link);
+      setConnectedDevices(getConnectedCloudDevices());
       setIsSyncing(false);
       setLastSyncedTime(
         new Date().toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })
@@ -413,13 +427,25 @@ export default function InstallPwaPrompt() {
                 onClick={() => {
                   setSyncStatus(null);
                   setPartnerSyncKey('');
+                  setConnectedDevices(getConnectedCloudDevices());
                   setShowSyncModal(true);
                 }}
-                className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-400 hover:bg-emerald-500/25"
-                title="Κωδικός Συγχρονισμού Συσκευής (Πάτησε για Σύζευξη Κινητού ↔ PC)"
+                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[10px] font-bold transition ${
+                  connectedDevices.length >= 2
+                    ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'
+                    : 'border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25'
+                }`}
+                title="Κατάσταση Συγχρονισμού Κινητού ↔ PC"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                {syncKey || '...'}
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    connectedDevices.length >= 2 ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'
+                  }`}
+                />
+                {syncKey || '...'} •{' '}
+                {connectedDevices.length >= 2
+                  ? `Συνδεδεμένο (${connectedDevices.length} συσκευές)`
+                  : '1 συσκευή (Πάτησε για σύνδεση)'}
               </button>
               {lastSyncedTime && (
                 <span className="hidden text-[10px] text-zinc-400 md:inline">
@@ -502,16 +528,57 @@ export default function InstallPwaPrompt() {
               </button>
             </div>
 
-            {/* Why devices might not talk: Clear explanation of same-code rule */}
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs leading-relaxed text-zinc-200">
-              <p className="font-bold text-emerald-400">
-                Πώς επικοινωνούν ζωντανά το Κινητό με τον Υπολογιστή σου:
-              </p>
-              <p className="mt-1 text-zinc-300">
-                Κάθε νέα συσκευή ξεκινά με δικό της κωδικό για λόγους ιδιωτικότητας. Για να βλέπει
-                ο Υπολογιστής ό,τι ανεβάζεις στο Κινητό (π.χ. <strong>PDF Αιματολογικών</strong>,{' '}
-                <strong>Smartwatch</strong>, <strong>Διατροφή</strong>), πρέπει και οι 2 συσκευές να
-                έχουν <strong>τον ΙΔΙΟ Κωδικό</strong> πάνω δεξιά!
+            {/* LIVE MULTI-DEVICE CONNECTION STATUS BOX */}
+            <div
+              className={`rounded-xl border p-3.5 text-xs leading-relaxed ${
+                connectedDevices.length >= 2
+                  ? 'border-emerald-500/45 bg-emerald-500/15 text-zinc-100'
+                  : 'border-amber-500/40 bg-amber-500/10 text-zinc-200'
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-emerald-400">
+                  {connectedDevices.length >= 2
+                    ? `🟢 ΕΝΕΡΓΟΣ ΣΥΓΧΡΟΝΙΣΜΟΣ: ${connectedDevices.length} Συσκευές στον κωδικό ${syncKey}`
+                    : `🟡 Μόνο 1 συσκευή είναι αυτή τη στιγμή στον κωδικό ${syncKey}`}
+                </span>
+                {lastSyncedTime && (
+                  <span className="text-[11px] text-zinc-300">
+                    Τελευταία επικοινωνία: {lastSyncedTime}
+                  </span>
+                )}
+              </div>
+
+              {connectedDevices.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {connectedDevices.map((dev) => (
+                    <span
+                      key={dev.deviceId}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-[11px] font-semibold text-zinc-200"
+                    >
+                      {dev.deviceType === 'mobile' ? (
+                        <Smartphone className="h-3.5 w-3.5 text-emerald-400" />
+                      ) : (
+                        <Laptop className="h-3.5 w-3.5 text-emerald-400" />
+                      )}
+                      <span>{dev.deviceLabel}</span>
+                      <span className="text-[10px] text-zinc-400">
+                        (
+                        {new Date(dev.lastSeenAt).toLocaleTimeString('el-GR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        )
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <p className="mt-2 text-[11px] text-zinc-300">
+                {connectedDevices.length >= 2
+                  ? '✓ Το Κινητό και ο Υπολογιστής σου επικοινωνούν κανονικά! Ό,τι ανεβάζεις στη μία συσκευή εμφανίζεται αυτόματα στην άλλη.'
+                  : `Για να συνδεθεί η άλλη σου συσκευή, άνοιξέ την και γράψε τον κωδικό ${syncKey} στο πεδίο «2. Σύζευξη με την Άλλη σου Συσκευή» (ή γράψε εδώ τον κωδικό που δείχνει εκείνη).`}
               </p>
             </div>
 

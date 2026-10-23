@@ -15,6 +15,71 @@ import {
 const SYNC_KEY_STORAGE = 'kinesis_personal_sync_key_v1';
 const PAIRED_STATUS_STORAGE = 'kinesis_is_paired_device_v1';
 const LAST_SYNC_TIME_STORAGE = 'kinesis_last_sync_at_v1';
+const DEVICE_ID_STORAGE = 'kinesis_unique_device_id_v1';
+const CONNECTED_DEVICES_STORAGE = 'kinesis_connected_devices_cache_v1';
+
+export interface CloudDeviceInfo {
+  deviceId: string;
+  deviceType: 'mobile' | 'desktop';
+  deviceLabel: string;
+  lastSeenAt: string;
+}
+
+export function getLocalDeviceInfo(): CloudDeviceInfo {
+  if (typeof window === 'undefined' || !('localStorage' in window)) {
+    return {
+      deviceId: 'srv-default',
+      deviceType: 'desktop',
+      deviceLabel: 'Υπολογιστής (PC)',
+      lastSeenAt: new Date().toISOString(),
+    };
+  }
+
+  let devId = window.localStorage.getItem(DEVICE_ID_STORAGE);
+  const ua = window.navigator.userAgent.toLowerCase();
+  const isMobile = /android|iphone|ipad|ipod|mobile/.test(ua);
+  const deviceType: 'mobile' | 'desktop' = isMobile ? 'mobile' : 'desktop';
+
+  if (!devId) {
+    devId = `${deviceType}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    window.localStorage.setItem(DEVICE_ID_STORAGE, devId);
+  }
+
+  let deviceLabel = isMobile ? 'Κινητό Τηλέφωνο' : 'Υπολογιστής (PC)';
+  if (/iphone|ipad/.test(ua)) deviceLabel = 'iPhone / iPad';
+  else if (/android/.test(ua)) deviceLabel = 'Κινητό Android';
+  else if (/macintosh|mac os/.test(ua)) deviceLabel = 'Υπολογιστής Mac';
+  else if (/windows/.test(ua)) deviceLabel = 'Υπολογιστής Windows';
+
+  return {
+    deviceId: devId,
+    deviceType,
+    deviceLabel,
+    lastSeenAt: new Date().toISOString(),
+  };
+}
+
+export function getConnectedCloudDevices(): CloudDeviceInfo[] {
+  if (typeof window === 'undefined' || !('localStorage' in window)) return [];
+  try {
+    const raw = window.localStorage.getItem(CONNECTED_DEVICES_STORAGE);
+    if (!raw) return [getLocalDeviceInfo()];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [getLocalDeviceInfo()];
+  } catch {
+    return [getLocalDeviceInfo()];
+  }
+}
+
+function saveConnectedCloudDevices(devices: CloudDeviceInfo[] | undefined): void {
+  if (typeof window === 'undefined' || !('localStorage' in window) || !Array.isArray(devices)) {
+    return;
+  }
+  window.localStorage.setItem(CONNECTED_DEVICES_STORAGE, JSON.stringify(devices));
+  if (devices.length >= 2) {
+    setDevicePaired(true);
+  }
+}
 
 export function getPersonalSyncKey(): string {
   if (typeof window === 'undefined' || !('localStorage' in window)) return '';
@@ -228,6 +293,7 @@ export async function createCrossDeviceSyncLink(): Promise<string> {
 export async function pushProgressToCloud(customKey?: string): Promise<{
   ok: boolean;
   updatedAt?: string;
+  connectedDevices?: CloudDeviceInfo[];
   error?: string;
 }> {
   try {
@@ -235,19 +301,25 @@ export async function pushProgressToCloud(customKey?: string): Promise<{
     const now = recordLocalModificationTime();
     const snapshot = await getKinesisSnapshot();
     const payload = { ...snapshot, exportedAt: now };
+    const deviceInfo = getLocalDeviceInfo();
 
     const res = await fetch('/api/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key, payload }),
+      body: JSON.stringify({ key, payload, deviceInfo }),
     });
 
     if (!res.ok) {
       return { ok: false, error: 'Αδυναμία σύνδεσης με τον διακομιστή συγχρονισμού.' };
     }
     const data = await res.json();
+    saveConnectedCloudDevices(data.connectedDevices);
     const ts = recordSyncTimestamp();
-    return { ok: true, updatedAt: data.updatedAt || ts };
+    return {
+      ok: true,
+      updatedAt: data.updatedAt || ts,
+      connectedDevices: data.connectedDevices || getConnectedCloudDevices(),
+    };
   } catch {
     return { ok: false, error: 'Εκτός σύνδεσης — τα δεδομένα είναι ασφαλή τοπικά.' };
   }
@@ -275,25 +347,34 @@ export async function pairAndMergeWithDevice(targetKey: string): Promise<{
   const cleanKey = setPersonalSyncKey(targetKey);
   try {
     const localSnap = await getKinesisSnapshot();
+    const dev = getLocalDeviceInfo();
 
-    const getRes = await fetch(`/api/sync?key=${encodeURIComponent(cleanKey)}`, {
-      method: 'GET',
-      cache: 'no-store',
-    });
+    const getRes = await fetch(
+      `/api/sync?key=${encodeURIComponent(cleanKey)}&deviceId=${encodeURIComponent(dev.deviceId)}&deviceType=${encodeURIComponent(dev.deviceType)}&deviceLabel=${encodeURIComponent(dev.deviceLabel)}`,
+      {
+        method: 'GET',
+        cache: 'no-store',
+      }
+    );
 
     if (getRes.ok) {
       const data = await getRes.json();
+      saveConnectedCloudDevices(data.connectedDevices);
       if (data.found && data.payload) {
         const remoteSnap = data.payload as KinesisDatabaseDump;
         const mergedSnap = mergeKinesisSnapshots(localSnap, remoteSnap);
         const restored = await importDatabaseJson(JSON.stringify(mergedSnap));
 
         // Push the merged snapshot back so BOTH devices have the exact same combined state!
-        await fetch('/api/sync', {
+        const postRes = await fetch('/api/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: cleanKey, payload: restored }),
+          body: JSON.stringify({ key: cleanKey, payload: restored, deviceInfo: dev }),
         });
+        if (postRes.ok) {
+          const postData = await postRes.json();
+          saveConnectedCloudDevices(postData.connectedDevices);
+        }
 
         setDevicePaired(true);
         recordSyncTimestamp();
@@ -372,10 +453,14 @@ export async function pullProgressFromCloud(
 }> {
   try {
     const key = customKey ? setPersonalSyncKey(customKey) : getPersonalSyncKey();
-    const res = await fetch(`/api/sync?key=${encodeURIComponent(key)}`, {
-      method: 'GET',
-      cache: 'no-store',
-    });
+    const dev = getLocalDeviceInfo();
+    const res = await fetch(
+      `/api/sync?key=${encodeURIComponent(key)}&deviceId=${encodeURIComponent(dev.deviceId)}&deviceType=${encodeURIComponent(dev.deviceType)}&deviceLabel=${encodeURIComponent(dev.deviceLabel)}`,
+      {
+        method: 'GET',
+        cache: 'no-store',
+      }
+    );
 
     if (!res.ok) {
       return {
@@ -388,6 +473,7 @@ export async function pullProgressFromCloud(
     }
 
     const data = await res.json();
+    saveConnectedCloudDevices(data.connectedDevices);
     if (!data.found || !data.payload) {
       return {
         ok: true,

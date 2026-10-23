@@ -67,6 +67,7 @@ import {
   getUploadedDietPlan,
   recordMovementLog,
   recordRejection,
+  saveBiometrics,
   saveCheckIn,
   saveTransformationGoal,
   saveUploadedDietPlan,
@@ -1212,6 +1213,12 @@ export default function TodayCommandCenter() {
         onSaveDietPlan={async (newPlan) => {
           const saved = await saveUploadedDietPlan(newPlan);
           setDietPlan(saved);
+          if (newPlan?.detectedWeightKg && newPlan.detectedWeightKg > 30) {
+            const nextBio = { ...biometrics, weight: newPlan.detectedWeightKg };
+            setBiometrics(nextBio);
+            await saveBiometrics(nextBio);
+          }
+          await pushProgressToCloud(getPersonalSyncKey());
         }}
         onTriggerCravingResetWorkout={(session) => {
           setCompletionBanner(null);

@@ -17,9 +17,11 @@ import {
 } from '@/lib/parser/smartwatchParser';
 import {
   calculateAthleticMachineProgress,
+  createClinicalSatietyDietPlan,
   createSampleBalancedDietPlan,
   DEFAULT_TRANSFORMATION_GOAL,
   getDailyNutritionAndMotivation,
+  parseDietPlanFromText,
 } from './nutritionAndMotivation';
 import {
   BiomarkerProfile,
@@ -518,7 +520,9 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
 
       // Preserves Mobile's uploaded PDF & biomarkers AND PC's higher stage, logs, and diet plan!
       expect(merged.pdfHistory?.length).toBe(1);
-      expect(merged.pdfHistory?.[0].fileName).toBe('Αιματολογικές_Κινητού.pdf');
+      expect((merged.pdfHistory?.[0] as { fileName?: string })?.fileName).toBe(
+        'Αιματολογικές_Κινητού.pdf'
+      );
       expect(merged.biomarkers.ferritin).toBe(21.5);
       expect(merged.biomarkers.hemoglobin).toBe(13.4);
       expect(merged.biomarkers.vitaminD).toBe(22.8);
@@ -526,6 +530,85 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       expect(merged.logs.length).toBe(2);
       expect(merged.smartwatchHistory?.length).toBe(1);
       expect(merged.uploadedDietPlan).not.toBeNull();
+    });
+
+    it('accurately parses multi-line Clinical Nutrition Protocol (ΚΛΙΝΙΚΟ ΠΡΩΤΟΚΟΛΛΟ ΔΙΑΤΡΟΦΗΣ 94KG) from PDF/pasted text', () => {
+      const clinicalText = `ΚΛΙΝΙΚΟ ΠΡΩΤΟΚΟΛΛΟ ΔΙΑΤΡΟΦΗΣ
+ΣΤΟΧΟΣ: ΑΠΩΛΕΙΑ ΛΙΠΟΥΣ & ΕΝΕΡΓΕΙΑΚΗ ΣΤΑΘΕΡΟΤΗΤΑ
+ΤΡΕΧΟΝ ΒΑΡΟΣ: 94KG | ΕΚΤΙΜΩΜΕΝΟ ΒΑΣΙΚΟ ΙΣΟΖΥΓΙΟ: ~1.950 KCAL | ΣΤΡΑΤΗΓΙΚΗ: ΜΗΧΑΝΙΚΟΣ ΚΟΡΕΣΜΟΣ
+
+1. ΣΤΑΘΕΡΟΣ ΗΜΕΡΗΣΙΟΣ ΚΟΡΜΟΣ (ΚΑΘΗΜΕΡΙΝΑ)
+ΠΡΩΙΝΟ
+3 φρυγανιές Wasa ή Ολικής Άλεσης
+3 φέτες τυρί Adoro light
+2 αυγά βραστά (ολόκληρα)
+2 ντοματίνια ή μισό αγγούρι
+
+ΣΝΑΚ ΓΡΑΦΕΙΟΥ (ΕΠΙΛΟΓΗ 1 ΑΠΟ ΤΑ 2)
+Επιλογή Α: 1 γιαούρτι 2% + 10 αμύγδαλα + 1 μήλο
+Επιλογή Β: 2 φρυγανιές ολικής + 2 φέτες γαλοπούλα + 1 αγγούρι
+
+ΒΡΑΔΙΝΟ (2.5 - 3 ΩΡΕΣ ΠΡΙΝ ΤΟΝ ΥΠΝΟ)
+200γρ Τυρί Cottage (4% ή light)
+Μεγάλη πράσινη σαλάτα
+1 κ.σ. ελαιόλαδο (αυστηρά μετρημένο)
+
+2. ΚΥΡΙΩΣ ΓΕΥΜΑ (ΥΨΗΛΟΣ ΠΡΩΤΕΙΝΙΚΟΣ ΟΓΚΟΣ)
+Κοτόπουλο / Γαλοπούλα: 200γρ ψητό στήθος + Μεγάλη Σαλάτα
+Μοσχάρι Άπαχο: 200γρ ψητό + Σαλάτα + 100γρ καστανό ρύζι
+Τόνος (σε νερό): 2 κονσέρβες (στραγγισμένες) + Σαλάτα με ρόκα/μαρούλι
+
+3. ΟΣΠΡΙΑ & ΥΔΑΤΑΝΘΡΑΚΕΣ (1-2 ΦΟΡΕΣ/ΕΒΔΟΜΑΔΑ)
+Φακές / Ρεβίθια / Φασόλια: 1 βαθύ πιάτο (στραγγισμένο) + 150γρ Τυρί Cottage.
+Ζυμαρικά Ολικής: 1.5 φλιτζάνι βρασμένα + 2 κ.σ. τυρί light + Σαλάτα.
+Βιοχημική Οδηγία: Κατανάλωσε ΠΡΩΤΑ τη σαλάτα και την πρωτεΐνη και ΤΕΛΕΥΤΑΙΟ το άμυλο.
+
+4. ΣΤΑΘΕΡΕΣ ΠΑΡΑΜΕΤΡΟΙ (ΜΗ ΔΙΑΠΡΑΓΜΑΤΕΥΣΙΜΕΣ)
+3 Λίτρα νερό ημερησίως (Απαραίτητο για τη λιπόλυση στα 94 κιλά).
+30-45 λεπτά γρήγορο περπάτημα καθημερινά.`;
+
+      const parsed = parseDietPlanFromText(clinicalText, 'Κλινικό_Πρωτόκολλο_94kg.pdf');
+
+      expect(parsed.detectedWeightKg).toBe(94);
+      expect(parsed.meals.length).toBeGreaterThanOrEqual(5);
+
+      const breakfast = parsed.meals.find((m) => m.slotLabelGreek.includes('Πρωινό'));
+      expect(breakfast).toBeDefined();
+      expect(breakfast?.descriptionGreek).toContain('Adoro light');
+      expect(breakfast?.descriptionGreek).toContain('2 αυγά βραστά');
+
+      const snack = parsed.meals.find((m) => m.slotLabelGreek.includes('Σνακ'));
+      expect(snack).toBeDefined();
+      expect(snack?.descriptionGreek).toContain('Επιλογή Α');
+      expect(snack?.descriptionGreek).toContain('Επιλογή Β');
+
+      const lunch = parsed.meals.find((m) => m.slotLabelGreek.includes('Κυρίως'));
+      expect(lunch).toBeDefined();
+      expect(lunch?.descriptionGreek).toContain('200γρ ψητό στήθος');
+      expect(lunch?.descriptionGreek).toContain('Μοσχάρι Άπαχο');
+
+      const dinner = parsed.meals.find((m) => m.slotLabelGreek.includes('Βραδινό'));
+      expect(dinner).toBeDefined();
+      expect(dinner?.descriptionGreek).toContain('200γρ Τυρί Cottage');
+
+      expect(parsed.parametersGreek?.some((p) => p.includes('3 Λίτρα νερό'))).toBe(true);
+
+      const preset = createClinicalSatietyDietPlan();
+      expect(preset.detectedWeightKg).toBe(94);
+      expect(preset.meals.length).toBe(5);
+    });
+
+    it('parses Google Health Connect / Health Sync JSON payload accurately', () => {
+      const jsonStr = createSampleSmartwatchTcx('google_health_sync');
+      const res = parseSmartwatchRawContent(jsonStr, 'Google_Health_Connect_Sync.json');
+
+      expect(res.biometricsUpdate.stepsSoFar).toBe(6840);
+      expect(res.biometricsUpdate.rhr).toBe(57);
+      expect(res.biometricsUpdate.hrv).toBe(61);
+      expect(res.biometricsUpdate.sleepScore).toBe(84);
+      expect(res.biometricsUpdate.weight).toBe(94);
+      expect(res.detectedWorkout).toBeDefined();
+      expect(res.detectedWorkout?.durationMins).toBe(18);
     });
   });
 });

@@ -1,8 +1,26 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Play, Pause, CheckCircle2, X, RotateCcw, Sparkles, ListChecks } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  CheckCircle2,
+  ListChecks,
+  Pause,
+  Play,
+  RotateCcw,
+  Sparkles,
+  Volume2,
+  VolumeX,
+  X,
+} from 'lucide-react';
 import { ModalityType, MODALITY_LABELS_GREEK } from '@/types/kinesis';
+import {
+  playFinalThreeTwoOneBeep,
+  playFullMinuteDiscreetPulse,
+  playGrandFinaleFanfare,
+  playHalfMinuteDiscreetPulse,
+  playPrepCountdownTick,
+  playWorkoutStartChime,
+} from '@/lib/audio/timerAudio';
 
 export interface ActiveTimerSession {
   title: string;
@@ -27,30 +45,109 @@ export default function SessionTimer({
   onCancel,
 }: SessionTimerProps) {
   const totalSeconds = Math.max(60, session.durationMins * 60);
+  // 5-second pre-start countdown (5, 4, 3, 2, 1 -> 0 = workout running)
+  const [prepSecondsLeft, setPrepSecondsLeft] = useState<number>(5);
   const [secondsLeft, setSecondsLeft] = useState<number>(totalSeconds);
   const [isRunning, setIsRunning] = useState<boolean>(true);
   const [isFinishing, setIsFinishing] = useState<boolean>(false);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [cueBanner, setCueBanner] = useState<string | null>(
+    'Ετοιμάσου! Ξεκινάμε σε 5 δευτερόλεπτα με διακριτικό ήχο...'
+  );
+
   const [rpe, setRpe] = useState<number>(3);
   const [notes, setNotes] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
+  const soundEnabledRef = useRef<boolean>(soundEnabled);
   useEffect(() => {
-    if (!isRunning || isFinishing) return;
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  // Play initial tick on mount when 5-second prep starts
+  useEffect(() => {
+    if (soundEnabledRef.current) {
+      playPrepCountdownTick();
+    }
+  }, []);
+
+  // 1. Handle 5-second Pre-Start Preparation Countdown
+  useEffect(() => {
+    if (!isRunning || isFinishing || prepSecondsLeft <= 0) return;
+
+    const prepTimer = window.setInterval(() => {
+      setPrepSecondsLeft((prev) => {
+        if (prev <= 1) {
+          window.clearInterval(prepTimer);
+          if (soundEnabledRef.current) {
+            playWorkoutStartChime();
+          }
+          setCueBanner('ΠΑΜΕ! Το χρονόμετρο ξεκίνησε — κινήσου ήρεμα στον ρυθμό σου.');
+          return 0;
+        }
+        const nextVal = prev - 1;
+        if (soundEnabledRef.current) {
+          playPrepCountdownTick();
+        }
+        setCueBanner(`Ετοιμάσου: ${nextVal}...`);
+        return nextVal;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(prepTimer);
+  }, [isRunning, isFinishing, prepSecondsLeft]);
+
+  // 2. Handle Main Workout Countdown + 30s / 60s / 3-2-1 Finale Audio Cues
+  useEffect(() => {
+    if (!isRunning || isFinishing || prepSecondsLeft > 0) return;
 
     const timer = window.setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
           window.clearInterval(timer);
+          if (soundEnabledRef.current) {
+            playGrandFinaleFanfare();
+          }
           setIsRunning(false);
           setIsFinishing(true);
           return 0;
         }
-        return prev - 1;
+
+        const nextSec = prev - 1;
+
+        // Final 3, 2, 1 countdown
+        if (nextSec === 3 || nextSec === 2 || nextSec === 1) {
+          if (soundEnabledRef.current) {
+            playFinalThreeTwoOneBeep(nextSec);
+          }
+          setCueBanner(`Φινάλε σε ${nextSec}... Σχεδόν τελείωσες!`);
+        } else if (nextSec < totalSeconds && nextSec > 4) {
+          // Full minute mark (:00)
+          if (nextSec % 60 === 0) {
+            if (soundEnabledRef.current) {
+              playFullMinuteDiscreetPulse();
+            }
+            const minsDone = Math.round((totalSeconds - nextSec) / 60);
+            setCueBanner(
+              `⏱️ Ολοκληρώθηκε ${minsDone}ο λεπτό! (Διακριτικός ήχος λεπτού — συνεχίζουμε ήρεμα)`
+            );
+          } else if (nextSec % 60 === 30) {
+            // Half-minute mark (:30)
+            if (soundEnabledRef.current) {
+              playHalfMinuteDiscreetPulse();
+            }
+            setCueBanner(
+              '🔔 30" Ρυθμός: Διακριτική υπενθύμιση ροής (Ο χρόνος συνεχίζεται κανονικά)'
+            );
+          }
+        }
+
+        return nextSec;
       });
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [isRunning, isFinishing]);
+  }, [isRunning, isFinishing, prepSecondsLeft, totalSeconds]);
 
   const elapsedSeconds = totalSeconds - secondsLeft;
   const progressPercent = Math.min(100, Math.round((elapsedSeconds / totalSeconds) * 100));
@@ -59,6 +156,16 @@ export default function SessionTimer({
     const mins = Math.floor(secs / 60);
     const rem = secs % 60;
     return `${String(mins).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
+  };
+
+  const handleResetTimer = () => {
+    setPrepSecondsLeft(5);
+    setSecondsLeft(totalSeconds);
+    setIsRunning(true);
+    setCueBanner('Επαναφορά: Ξεκινάμε σε 5 δευτερόλεπτα...');
+    if (soundEnabled) {
+      playPrepCountdownTick();
+    }
   };
 
   const handleConfirmFinish = async () => {
@@ -74,19 +181,45 @@ export default function SessionTimer({
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-between overflow-y-auto bg-zinc-950/98 p-4 pb-8 text-zinc-100 backdrop-blur-lg">
       {/* Top Bar */}
-      <div className="mx-auto flex w-full max-w-2xl items-center justify-between">
+      <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400">
           <Sparkles className="h-3.5 w-3.5" />
           {MODALITY_LABELS_GREEK[session.modality]} • Χωρίς Εξοπλισμό
         </span>
-        <button
-          type="button"
-          onClick={onCancel}
-          aria-label="Κλείσιμο χρονομέτρου"
-          className="flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-zinc-100"
-        >
-          <X className="h-5 w-5" />
-        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSoundEnabled((prev) => !prev)}
+            className={`inline-flex h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition ${
+              soundEnabled
+                ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                : 'border-zinc-800 bg-zinc-900 text-zinc-400'
+            }`}
+            title="Ενεργοποίηση / Απενεργοποίηση Ηχητικών Σημάτων Χρονομέτρου"
+          >
+            {soundEnabled ? (
+              <>
+                <Volume2 className="h-4 w-4 text-emerald-400" />
+                <span>Ήχοι Ενεργοί</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="h-4 w-4" />
+                <span>Αθόρυβο</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Κλείσιμο χρονομέτρου"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-zinc-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -97,30 +230,79 @@ export default function SessionTimer({
             {session.title}
           </h2>
 
+          {/* Acoustic Status / Cue Banner */}
+          {cueBanner && (
+            <div className="mt-2.5 inline-flex items-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-300">
+              <span>{cueBanner}</span>
+              {prepSecondsLeft > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPrepSecondsLeft(0);
+                    if (soundEnabled) playWorkoutStartChime();
+                    setCueBanner('ΠΑΜΕ! Το χρονόμετρο ξεκίνησε.');
+                  }}
+                  className="ml-1 rounded-md bg-emerald-500 px-2 py-0.5 text-[10px] font-extrabold text-zinc-950"
+                >
+                  Άμεση Έναρξη
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="mt-4 grid w-full grid-cols-1 items-center gap-5 md:grid-cols-12">
             {/* Left / Top: Large Readable Countdown Circle & Controls */}
             <div className="flex flex-col items-center md:col-span-5">
-              <div className="relative my-3 flex h-44 w-44 flex-col items-center justify-center rounded-full border-4 border-zinc-800 bg-zinc-900/80 shadow-2xl">
+              <div
+                className={`relative my-3 flex h-48 w-48 flex-col items-center justify-center rounded-full border-4 bg-zinc-900/80 shadow-2xl transition-all ${
+                  prepSecondsLeft > 0
+                    ? 'border-amber-400/80'
+                    : secondsLeft <= 3
+                    ? 'scale-105 border-emerald-400'
+                    : 'border-zinc-800'
+                }`}
+              >
                 <div
                   className="absolute inset-0 rounded-full border-4 border-emerald-500/80 transition-all duration-500"
                   style={{
                     clipPath: `inset(${100 - progressPercent}% 0 0 0)`,
                   }}
                 />
-                <span className="font-mono text-4xl font-bold tracking-tight text-zinc-50">
-                  {formatTime(secondsLeft)}
-                </span>
-                <span className="mt-1 text-xs font-medium text-zinc-400">
-                  {isRunning ? 'Σε εξέλιξη • Με τον ρυθμό σου' : 'Σε παύση'}
-                </span>
+                {prepSecondsLeft > 0 ? (
+                  <>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+                      Έναρξη σε
+                    </span>
+                    <span className="font-mono text-5xl font-extrabold text-amber-300">
+                      {prepSecondsLeft}
+                    </span>
+                    <span className="mt-1 text-[11px] font-medium text-zinc-300">
+                      Πάρε θέση...
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    {secondsLeft <= 3 && secondsLeft > 0 && (
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400">
+                        Φινάλε {secondsLeft}!
+                      </span>
+                    )}
+                    <span className="font-mono text-4xl font-bold tracking-tight text-zinc-50">
+                      {formatTime(secondsLeft)}
+                    </span>
+                    <span className="mt-1 text-xs font-medium text-zinc-400">
+                      {isRunning ? 'Σε εξέλιξη • Με τον ρυθμό σου' : 'Σε παύση'}
+                    </span>
+                  </>
+                )}
               </div>
 
               <div className="mt-2 flex w-full items-center justify-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setSecondsLeft(totalSeconds)}
+                  onClick={handleResetTimer}
                   className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900 text-zinc-300 active:scale-95"
-                  title="Επαναφορά χρόνου"
+                  title="Επαναφορά χρόνου (με αντίστροφη μέτρηση 5 δευτ.)"
                 >
                   <RotateCcw className="h-5 w-5" />
                 </button>
@@ -142,6 +324,43 @@ export default function SessionTimer({
                     </>
                   )}
                 </button>
+              </div>
+
+              {/* Acoustic Cues Legend & 1-Click Sound Preview */}
+              <div className="mt-3 w-full rounded-xl border border-zinc-800/90 bg-zinc-900/70 p-2.5 text-left text-[11px] text-zinc-300">
+                <div className="font-bold text-emerald-400">
+                  🔊 Έξυπνα Ηχητικά Σήματα (Δοκιμή με 1 κλικ):
+                </div>
+                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => playPrepCountdownTick()}
+                    className="rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-left text-[10px] hover:border-emerald-500/40"
+                  >
+                    • <strong>5" Έναρξη:</strong> Απαλό τικ προετοιμασίας
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => playHalfMinuteDiscreetPulse()}
+                    className="rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-left text-[10px] hover:border-emerald-500/40"
+                  >
+                    • <strong>Κάθε 30":</strong> Διακριτική σταγόνα ρυθμού
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => playFullMinuteDiscreetPulse()}
+                    className="rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-left text-[10px] hover:border-emerald-500/40"
+                  >
+                    • <strong>Κάθε 1&apos;:</strong> Διπλός ήρεμος τόνος λεπτού
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => playGrandFinaleFanfare()}
+                    className="rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-left text-[10px] hover:border-emerald-500/40"
+                  >
+                    • <strong>Φινάλε (3-2-1):</strong> Μελωδία ολοκλήρωσης
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -171,6 +390,7 @@ export default function SessionTimer({
           <button
             type="button"
             onClick={() => {
+              if (soundEnabled) playGrandFinaleFanfare();
               setIsRunning(false);
               setIsFinishing(true);
             }}

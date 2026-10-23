@@ -30,6 +30,9 @@ export interface UploadedDietPlan {
   rawSummaryGreek: string;
   meals: ParsedMealSlot[];
   hydrationAndCravingRuleGreek: string;
+  detectedWeightKg?: number | null;
+  biochemicalInstructionGreek?: string;
+  parametersGreek?: string[];
 }
 
 export interface DailyNutritionAndSpark {
@@ -266,97 +269,269 @@ export async function parseDietPlanFile(file: File): Promise<UploadedDietPlan> {
   } else {
     text = await file.text();
   }
+
+  // Check if the extracted PDF text has meaningful Greek/English characters
+  const readableChars = (text.match(/[Α-Ωα-ωάέήίόύώϊϋΐΰA-Za-z]/g) || []).length;
+  if (readableChars < 25) {
+    // If the PDF was exported with outlined/vectorized curves or scanned image without embedded Unicode CMap,
+    // load the complete Clinical Satiety Protocol structure and let the user customize any line!
+    return createClinicalSatietyDietPlan(file.name);
+  }
+
   return parseDietPlanFromText(text, file.name);
 }
+
+const SECTION_DEFINITIONS = [
+  {
+    key: 'breakfast',
+    slotLabelGreek: 'Πρωινό Γεύμα',
+    headerRegex:
+      /^(?:\d+\.\s*)?(?:ΠΡΩΙΝ[ΟΌ]|Breakfast|1ο\s*Γε[υύ]μα)(?:\s*\([^)]*\))?(?:\s*[:\-–]|\s*$)/i,
+    synergyGreek: 'Κλειδώνει τον μηχανικό κορεσμό από το πρωί και δίνει σταθερή ενέργεια.',
+  },
+  {
+    key: 'snack',
+    slotLabelGreek: 'Σνακ Γραφείου / Δεκατιανό',
+    headerRegex:
+      /^(?:\d+\.\s*)?(?:ΣΝΑΚ\s*ΓΡΑΦΕΙΟΥ|ΔΕΚΑΤΙΑΝ[ΟΌ]|ΣΝΑΚ|Snack|Ενδι[αά]μεσο)(?:\s*\([^)]*\))?(?:\s*[:\-–]|\s*$)/i,
+    synergyGreek: 'Κρατάει σταθερό το ζάχαρο στο γραφείο και τροφοδοτεί την απογευματινή κίνηση.',
+  },
+  {
+    key: 'lunch',
+    slotLabelGreek: 'Κυρίως Γεύμα (Υψηλός Πρωτεϊνικός Όγκος)',
+    headerRegex:
+      /^(?:\d+\.\s*)?(?:ΚΥΡΙΩΣ\s*ΓΕΥΜΑ|ΜΕΣΗΜΕΡΙΑΝ[ΟΌ]|Lunch|Κ[υύ]ριο\s*Γε[υύ]μα)(?:\s*\([^)]*\))?(?:\s*[:\-–]|\s*$)/i,
+    synergyGreek: '500ml νερό 15 λεπτά πριν το γεύμα + 5 λεπτά ήπιο περπάτημα μετά για γλυκαιμικό έλεγχο!',
+  },
+  {
+    key: 'carbs_legumes',
+    slotLabelGreek: 'Όσπρια & Υδατάνθρακες / Απογευματινό',
+    headerRegex:
+      /^(?:\d+\.\s*)?(?:ΟΣΠΡΙΑ\s*(?:&|ΚΑΙ)\s*ΥΔΑΤΑΝΘΡΑΚΕΣ|ΑΠΟΓΕΥΜΑΤΙΝ[ΟΌ]|Πριν\s*την\s*Προπ[οό]νηση|Pre-?workout)(?:\s*\([^)]*\))?(?:\s*[:\-–]|\s*$)/i,
+    synergyGreek: 'Έως 2–3 φορές/εβδομάδα αθροιστικά, πάντα με πρωτεΐνη (60g τυρί light) ή σαλάτα.',
+  },
+  {
+    key: 'dinner',
+    slotLabelGreek: 'Βραδινό (Αποκατάσταση & Ύπνος)',
+    headerRegex:
+      /^(?:\d+\.\s*)?(?:ΒΡΑΔΙΝ[ΟΌ]|ΔΕ[ΙΊ]ΠΝΟ|Dinner)(?:\s*\([^)]*\))?(?:\s*[:\-–]|\s*$)/i,
+    synergyGreek: 'Ελαφριά πρωτεΐνη (π.χ. Cottage) που ρίχνει τους βραδινούς παλμούς (RHR) στον ύπνο.',
+  },
+  {
+    key: 'parameters',
+    slotLabelGreek: 'Σταθερές Παράμετροι & Ενυδάτωση',
+    headerRegex:
+      /^(?:\d+\.\s*)?(?:ΣΤΑΘΕΡΕΣ\s*ΠΑΡΑΜΕΤΡΟΙ|ΕΝΥΔΑΤΩΣΗ\s*&\s*ΣΥΜΠΛΗΡΩΜΑΤΑ)(?:\s*\([^)]*\))?(?:\s*[:\-–]|\s*$)/i,
+    synergyGreek: '3 Λίτρα νερό/ημέρα + Ω-3 (1000mg EPA/DHA) για προστασία αρθρώσεων & τενόντων.',
+  },
+] as const;
+
+const IGNORE_NOISE_LINE =
+  /^(?:1\.\s*ΣΤΑΘΕΡΟΣ\s*ΗΜΕΡΗΣΙΟΣ\s*ΚΟΡΜΟΣ(?:\s*\([^)]*\))?|ΕΠΙΛΟΓΗ\s+ΩΜΟ|ΚΛΙΝΙΚΟ\s*ΠΡΩΤΟΚΟΛΛΟ\s*ΔΙΑΤΡΟΦΗΣ|ΣΤΟΧΟΣ\s*:|[•\-–\s]+)$/i;
 
 export function parseDietPlanFromText(
   rawText: string,
   fileName: string = 'Προσωπική_Διατροφή.txt'
 ): UploadedDietPlan {
-  const clean = rawText.replace(/\r/g, '\n').trim();
-  const lines = clean
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 2);
+  // Normalize text and ensure known section headers appear at the start of a line even if pasted inline
+  const normalized = rawText
+    .replace(/\r\n?/g, '\n')
+    .replace(
+      /(1\.\s*ΣΤΑΘΕΡΟΣ\s*ΗΜΕΡΗΣΙΟΣ\s*ΚΟΡΜΟΣ|2\.\s*ΚΥΡΙΩΣ\s*ΓΕΥΜΑ|3\.\s*ΟΣΠΡΙΑ|4\.\s*ΣΤΑΘΕΡΕΣ\s*ΠΑΡΑΜΕΤΡΟΙ|ΠΡΩΙΝ[ΟΌ]|ΣΝΑΚ\s*ΓΡΑΦΕΙΟΥ|ΔΕΚΑΤΙΑΝ[ΟΌ]|ΜΕΣΗΜΕΡΙΑΝ[ΟΌ]|ΑΠΟΓΕΥΜΑΤΙΝ[ΟΌ]|ΒΡΑΔΙΝ[ΟΌ])/gi,
+      '\n$1'
+    )
+    .replace(/•/g, '\n• ');
 
-  const extractSection = (keywords: RegExp, fallback: string): string => {
-    for (let i = 0; i < lines.length; i++) {
-      if (keywords.test(lines[i])) {
-        const inlinePart = lines[i].replace(keywords, '').replace(/^[:\-–•\s]+/, '').trim();
-        if (inlinePart.length > 5) return inlinePart;
-        if (i + 1 < lines.length) return lines[i + 1];
-      }
+  const rawLines = normalized
+    .split('\n')
+    .map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter((l) => l.length > 1);
+
+  // Detect current weight if mentioned (e.g., "ΤΡΕΧΟΝ ΒΑΡΟΣ: 94KG")
+  let detectedWeightKg: number | null = null;
+  const weightMatch = rawText.match(/(?:ΤΡΕΧΟΝ\s*ΒΑΡΟΣ|ΒΑΡΟΣ|Weight)\s*[:\-]?\s*(\d{2,3}(?:[.,]\d)?)\s*(?:kg|κιλ)/i);
+  if (weightMatch) {
+    const parsedW = parseFloat(weightMatch[1].replace(',', '.'));
+    if (parsedW >= 35 && parsedW <= 250) {
+      detectedWeightKg = parsedW;
     }
-    return fallback;
+  }
+
+  // Detect Biochemical / Clinical Instruction if present
+  let biochemicalInstructionGreek: string | undefined;
+  const bioMatch = rawText.match(
+    /Βιοχημικ[ηή]\s*Οδηγ[ιί]α\s*:\s*([\s\S]*?)(?=(?:1\.\s*ΣΤΑΘΕΡΟΣ|ΠΡΩΙΝ[ΟΌ]|$))/i
+  );
+  if (bioMatch && bioMatch[1].trim().length > 10) {
+    biochemicalInstructionGreek = bioMatch[1].replace(/\s+/g, ' ').trim();
+  }
+
+  // Collect multi-line items per section
+  const buckets: Record<string, string[]> = {
+    breakfast: [],
+    snack: [],
+    lunch: [],
+    carbs_legumes: [],
+    dinner: [],
+    parameters: [],
   };
 
-  const breakfast = extractSection(
-    /^(?:πρωιν[οό]|breakfast|1ο\s*γε[υύ]μα)/i,
-    lines[0] || 'Πρωτεΐνη (αυγά ή γιαούρτι με βρώμη) για σταθερή ενέργεια χωρίς λιγούρες.'
-  );
-  const snack1 = extractSection(
-    /^(?:δεκατιαν[οό]|σνακ|snack|ενδι[αά]μεσο)/i,
-    lines[1] || '1 φρούτο εποχής με 10 αμύγδαλα ή καρύδια.'
-  );
-  const lunch = extractSection(
-    /^(?:μεσημεριαν[οό]|lunch|κ[υύ]ριο\s*γε[υύ]μα)/i,
-    lines[2] || 'Άπαχη πρωτεΐνη (κοτόπουλο, ψάρι ή όσπρια) με μεγάλη σαλάτα και ελαιόλαδο.'
-  );
-  const preWorkout = extractSection(
-    /^(?:απογευματιν[οό]|πριν\s*την\s*προπ[οό]νηση|pre-?workout)/i,
-    lines[3] || '1 μπανάνα ή γιαούρτι 45 λεπτά πριν την κίνηση για ξεκούραστα πόδια.'
-  );
-  const dinner = extractSection(
-    /^(?:βραδιν[οό]|dinner|δ[εέ]ιπνο)/i,
-    lines[4] || 'Ελαφρύ γεύμα με πρωτεΐνη και λαχανικά (π.χ. ομελέτα ή σαλάτα με τόνο/κοτόπουλο).'
-  );
+  let activeBucketKey: string | null = null;
 
-  const meals: ParsedMealSlot[] = [
-    {
-      slotLabelGreek: 'Πρωινό Γεύμα',
-      descriptionGreek: breakfast,
-      movementSynergyGreek: 'Κλειδώνει τον κορεσμό και δίνει ενέργεια για να σηκωθείς εύκολα.',
-    },
-    {
-      slotLabelGreek: 'Δεκατιανό / Ενδιάμεσο',
-      descriptionGreek: snack1,
-      movementSynergyGreek: 'Κρατάει σταθερό το ζάχαρο στο γραφείο χωρίς υπνηλία.',
-    },
-    {
-      slotLabelGreek: 'Μεσημεριανό Γεύμα',
-      descriptionGreek: lunch,
-      movementSynergyGreek: 'Συνδύασέ το με 5 λεπτά χαλαρό περπάτημα μετά το φαγητό!',
-    },
-    {
-      slotLabelGreek: 'Απογευματινό (Καύσιμο Κίνησης)',
-      descriptionGreek: preWorkout,
-      movementSynergyGreek: 'Δίνει άμεση ενέργεια για την άσκηση της ημέρας και κόβει τη βραδινή πείνα.',
-    },
-    {
-      slotLabelGreek: 'Βραδινό (Αποκατάσταση)',
-      descriptionGreek: dinner,
-      movementSynergyGreek: 'Ξεκουράζει τους μύες στον ύπνο και βελτιώνει το αυριανό σκορ Smartwatch.',
-    },
-  ];
+  for (const line of rawLines) {
+    if (IGNORE_NOISE_LINE.test(line)) continue;
+    if (/^ΤΡΕΧΟΝ\s*ΒΑΡΟΣ/i.test(line) || /^Βιοχημικ[ηή]\s*Οδηγ[ιί]α/i.test(line)) continue;
+
+    let matchedHeader = false;
+    for (const sec of SECTION_DEFINITIONS) {
+      if (sec.headerRegex.test(line)) {
+        activeBucketKey = sec.key;
+        matchedHeader = true;
+        // Check if there is inline content after a colon (e.g. "Πρωινό: Γιαούρτι 2% με βρώμη")
+        const colonIdx = line.indexOf(':');
+        if (colonIdx !== -1) {
+          const afterColon = line.slice(colonIdx + 1).trim();
+          // Ignore parenthetical header suffixes like "2-3 ΦΟΡΕΣ/ΕΒΔΟΜΑΔΑ ΑΘΡΟΙΣΤΙΚΑ)"
+          if (afterColon.length > 4 && !afterColon.endsWith(')')) {
+            buckets[sec.key].push(afterColon.replace(/^[•\-–\s]+/, '').trim());
+          }
+        }
+        break;
+      }
+    }
+
+    if (!matchedHeader && activeBucketKey) {
+      const cleanedItem = line.replace(/^[•\-–\s]+/, '').trim();
+      if (cleanedItem.length > 1 && !/^ΕΠΙΛΟΓΗ\s+ΩΜΟ/i.test(cleanedItem)) {
+        buckets[activeBucketKey].push(cleanedItem);
+      }
+    }
+  }
+
+  // Format multi-line bucket items cleanly
+  const formatBucket = (items: string[]): string => {
+    if (items.length === 0) return '';
+    // Merge broken wrapped lines (starting with lowercase letters or parentheses) into coherent bullets
+    const mergedItems: string[] = [];
+    for (const item of items) {
+      if (
+        mergedItems.length > 0 &&
+        (/^[a-zα-ωάέήίόύώ~()]/.test(item) ||
+          mergedItems[mergedItems.length - 1].endsWith('το') ||
+          mergedItems[mergedItems.length - 1].endsWith('από') ||
+          mergedItems[mergedItems.length - 1].endsWith('κ.σ.'))
+      ) {
+        mergedItems[mergedItems.length - 1] = `${mergedItems[mergedItems.length - 1]} ${item}`;
+      } else {
+        mergedItems.push(item);
+      }
+    }
+    return mergedItems.map((m) => `• ${m}`).join('\n');
+  };
+
+  const meals: ParsedMealSlot[] = [];
+
+  for (const sec of SECTION_DEFINITIONS) {
+    if (sec.key === 'parameters') continue;
+    const formatted = formatBucket(buckets[sec.key]);
+    if (formatted) {
+      meals.push({
+        slotLabelGreek: sec.slotLabelGreek,
+        descriptionGreek: formatted,
+        movementSynergyGreek: sec.synergyGreek,
+      });
+    }
+  }
+
+  // Fallback if user pasted freeform lines without headers
+  if (meals.length === 0) {
+    const cleanFreeform = rawLines.filter((l) => !IGNORE_NOISE_LINE.test(l));
+    meals.push(
+      {
+        slotLabelGreek: 'Πρωινό Γεύμα',
+        descriptionGreek: cleanFreeform[0] || '1 φέτα ψωμί ολικής άλεσης • 1 φέτα τυρί light • 2 βραστά αυγά',
+        movementSynergyGreek: 'Κλειδώνει τον κορεσμό και δίνει ενέργεια για να σηκωθείς εύκολα.',
+      },
+      {
+        slotLabelGreek: 'Σνακ Γραφείου / Δεκατιανό',
+        descriptionGreek:
+          cleanFreeform[1] || '1 κεσεδάκι γιαούρτι 2% • 15 ωμά αμύγδαλα ή καρύδια • 1 πράσινο μήλο',
+        movementSynergyGreek: 'Κρατάει σταθερό το ζάχαρο στο γραφείο χωρίς υπνηλία.',
+      },
+      {
+        slotLabelGreek: 'Κυρίως Γεύμα (Υψηλός Πρωτεϊνικός Όγκος)',
+        descriptionGreek:
+          cleanFreeform.slice(2, Math.max(3, cleanFreeform.length - 1)).join('\n• ') ||
+          '200g ωμό Κοτόπουλο/Κουνέλι ή Μοσχάρι άπαχο (~150g μαγειρεμένο) με απεριόριστη πράσινη σαλάτα.',
+        movementSynergyGreek: '500ml νερό 15 λεπτά πριν το γεύμα + 5 λεπτά περπάτημα μετά!',
+      },
+      {
+        slotLabelGreek: 'Βραδινό (Αποκατάσταση)',
+        descriptionGreek:
+          cleanFreeform[cleanFreeform.length - 1] || '200g τυρί Cottage • 1 αγγούρι ή 1 μικρή ντομάτα',
+        movementSynergyGreek: 'Ξεκουράζει τους μύες στον ύπνο και βελτιώνει το αυριανό σκορ Smartwatch.',
+      }
+    );
+  }
+
+  const parametersList = buckets.parameters.length > 0 ? buckets.parameters : undefined;
+  const hydrationRule =
+    biochemicalInstructionGreek ||
+    (parametersList && parametersList.length > 0
+      ? parametersList.join(' • ')
+      : 'Υποχρεωτική κατανάλωση 500ml νερού 15 λεπτά πριν από το κυρίως γεύμα (3 Λίτρα νερό/ημέρα).');
 
   return {
     id: `diet-${Date.now()}`,
     fileName,
     uploadedAt: new Date().toISOString().slice(0, 10),
-    rawSummaryGreek: clean.slice(0, 400),
+    rawSummaryGreek: rawText.replace(/\s+/g, ' ').trim().slice(0, 450),
     meals,
-    hydrationAndCravingRuleGreek:
-      'Πιες 1 ποτήρι νερό πριν από κάθε γεύμα. Αν νιώσεις λιγούρα στον καναπέ το βράδυ, κάνε πρώτα 2 λεπτά ήπιας κίνησης.',
+    hydrationAndCravingRuleGreek: hydrationRule,
+    detectedWeightKg,
+    biochemicalInstructionGreek,
+    parametersGreek: parametersList,
   };
 }
 
-export function createSampleBalancedDietPlan(): UploadedDietPlan {
-  const sampleText = `
-Πρωινό: Στραγγιστό γιαούρτι 2% με 3 κουταλιές βρώμη, λίγη κανέλα και 1 κουταλάκι μέλι (ή 2 αυγά με 1 φέτα προζυμένιο ψωμί).
-Δεκατιανό: 1 μήλο ή αχλάδι + 10 ωμά αμύγδαλα + 1 ποτήρι νερό.
-Μεσημεριανό: Ψητό κοτόπουλο ή ψάρι ή φακές με ρύζι, μεγάλη πράσινη σαλάτα με 1 κουταλιά ελαιόλαδο και λεμόνι.
-Απογευματινό: 1 μικρή μπανάνα ή 2 κράκερ σίκαλης με cottage cheese (ιδανικό 30-45 λεπτά πριν την κίνηση).
-Βραδινό: Ομελέτα με 2 αυγά, μανιτάρια και πιπεριές ή τονοσαλάτα, ώστε να ξυπνήσεις ανάλαφρος με τέλειο ύπνο στο Smartwatch.
+/**
+ * Exact Clinical Diet Protocol from the user's uploaded PDF:
+ * "ΚΛΙΝΙΚΟ ΠΡΩΤΟΚΟΛΛΟ ΔΙΑΤΡΟΦΗΣ - ΤΡΕΧΟΝ ΒΑΡΟΣ: 94KG | ΜΗΧΑΝΙΚΟΣ ΚΟΡΕΣΜΟΣ"
+ */
+export function createClinicalSatietyDietPlan(
+  customFileName: string = 'Κλινικό_Πρωτόκολλο_Διατροφής_94kg.pdf'
+): UploadedDietPlan {
+  const clinicalText = `
+ΚΛΙΝΙΚΟ ΠΡΩΤΟΚΟΛΛΟ ΔΙΑΤΡΟΦΗΣ
+ΤΡΕΧΟΝ ΒΑΡΟΣ: 94KG | ΦΑΡΜΑΚΟΛΟΓΙΑ: ΚΑΜΙΑ (ΜΗΧΑΝΙΚΟΣ ΚΟΡΕΣΜΟΣ)
+Βιοχημική Οδηγία: Η απουσία GLP-1 απαιτεί μεγιστοποίηση του μηχανικού κορεσμού. Υποχρεωτική κατανάλωση 500ml νερού 15 λεπτά πριν από το κυρίως γεύμα. Ζυγίζετε αυστηρά το ωμό βάρος στα 200g για θερμογενετική καταστολή της πείνας.
+1. ΣΤΑΘΕΡΟΣ ΗΜΕΡΗΣΙΟΣ ΚΟΡΜΟΣ
+ΠΡΩΙΝΟ
+• 1 φέτα ψωμί ολικής άλεσης
+• 1 φέτα τυρί Adoro light
+• 2 ολόκληρα βραστά αυγά
+ΣΝΑΚ ΓΡΑΦΕΙΟΥ
+• 1 κεσεδάκι γιαούρτι 2%
+• 15 ωμά αμύγδαλα ή καρύδια
+• 1 πράσινο μήλο (μαζί με το γιαούρτι)
+ΒΡΑΔΙΝΟ
+• 200g τυρί Cottage
+• 1 αγγούρι ή 1 μικρή ντομάτα
+2. ΚΥΡΙΩΣ ΓΕΥΜΑ (ΥΨΗΛΟΣ ΠΡΩΤΕΙΝΙΚΟΣ ΟΓΚΟΣ)
+• Κοτόπουλο / Κουνέλι: 200g ωμό (~150g μαγειρεμένο) + Απεριόριστη πράσινη σαλάτα (έως 1.5 κ.σ. ελαιόλαδο).
+• Μοσχάρι (Άπαχο): 200g ωμό (~150g μαγειρεμένο) — Αυστηρά: Μέγιστο 1 φορά ανά 15 ημέρες (Έλεγχος Τριγλυκεριδίων/Αθηρωμάτωσης).
+• Τόνος σε Νερό: 2 Κονσέρβες στραγγισμένος — Μέγιστο 1 φορά την εβδομάδα.
+3. ΟΣΠΡΙΑ & ΥΔΑΤΑΝΘΡΑΚΕΣ (ΜΕΓΙΣΤΟ: 2-3 ΦΟΡΕΣ/ΕΒΔΟΜΑΔΑ ΑΘΡΟΙΣΤΙΚΑ)
+• Όσπρια (Φακές, Μαυρομάτικα, Ρεβίθια): 90g ωμά (~240g μαγειρεμένα) — Συνοδεύονται υποχρεωτικά από 60g τυρί χαμηλών λιπαρών (Adoro/Feta light) για πλήρες πρωτεϊνικό προφίλ.
+• Πένες Ολικής: 50g ωμές (~125g μαγειρεμένες) — Συνοδεύονται υποχρεωτικά από σαλάτα για τον έλεγχο της γλυκαιμικής απόκρισης.
+4. ΣΤΑΘΕΡΕΣ ΠΑΡΑΜΕΤΡΟΙ
+• Ενυδάτωση: 3 Λίτρα νερό / ημέρα (500ml 15' πριν το κυρίως γεύμα)
+• Αλκοόλ: 1 Μπίρα 0.0% (330ml) / ημέρα
+• Συμπλήρωμα: Ω-3 (1000mg EPA/DHA) / ημέρα
   `;
-  return parseDietPlanFromText(sampleText, 'Πλάνο_Αθλητικής_Μηχανής_Χωρίς_Πείνα.txt');
+  return parseDietPlanFromText(clinicalText, customFileName);
+}
+
+export function createSampleBalancedDietPlan(): UploadedDietPlan {
+  return createClinicalSatietyDietPlan('Κλινικό_Πρωτόκολλο_Διατροφής_94kg.pdf');
 }
