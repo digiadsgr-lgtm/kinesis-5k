@@ -133,7 +133,194 @@ export function playGrandFinaleFanfare(): void {
     playTone(783.99, 0.26, 0.16, 0.16, 'triangle'); // G5
     playTone(1046.5, 0.4, 0.45, 0.2, 'triangle'); // C6 sustained
     playTone(523.25, 0.4, 0.45, 0.1, 'sine'); // Warm root harmony
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate([200, 100, 200, 100, 450]);
+    }
   } catch {
     // ignore
   }
 }
+
+// ============================================================================
+// ANTI-SLEEP & BACKGROUND KEEP-ALIVE ENGINE (Screen Wake Lock + Silent Audio)
+// ============================================================================
+
+interface WakeLockSentinelLike {
+  released?: boolean;
+  release: () => Promise<void>;
+  addEventListener?: (type: string, listener: () => void) => void;
+}
+
+let activeWakeLock: WakeLockSentinelLike | null = null;
+let keepAliveAudioEl: HTMLAudioElement | null = null;
+let keepAliveOscillator: OscillatorNode | null = null;
+
+/**
+ * Generates a tiny 1-second silent PCM WAV data URI so mobile browsers (iOS Safari / Android Chrome)
+ * keep the JavaScript event loop and Web Audio context alive even if the user turns off the screen
+ * or puts the phone in their pocket during a 15-minute walk/run.
+ */
+function createSilentWavDataUri(): string {
+  const sampleRate = 8000;
+  const numSamples = sampleRate; // 1 second
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + numSamples * 2, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true); // PCM chunk size
+  view.setUint16(20, 1, true); // PCM format
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, numSamples * 2, true);
+
+  // Samples remain 0 (silence)
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return `data:audio/wav;base64,${typeof btoa === 'function' ? btoa(binary) : ''}`;
+}
+
+/**
+ * Requests a Screen Wake Lock so the phone screen does not turn off automatically
+ * while the workout timer is running.
+ */
+export async function requestWorkoutScreenWakeLock(): Promise<boolean> {
+  if (typeof navigator === 'undefined') return false;
+  try {
+    const navWithWakeLock = navigator as unknown as {
+      wakeLock?: {
+        request: (type: 'screen') => Promise<WakeLockSentinelLike>;
+      };
+    };
+    if (navWithWakeLock.wakeLock && typeof navWithWakeLock.wakeLock.request === 'function') {
+      if (activeWakeLock && !activeWakeLock.released) {
+        return true;
+      }
+      activeWakeLock = await navWithWakeLock.wakeLock.request('screen');
+      return true;
+    }
+  } catch {
+    // Fallback to silent audio keep-alive if WakeLock is restricted by battery saver
+  }
+  return false;
+}
+
+/**
+ * Releases the Screen Wake Lock immediately when the workout finishes or is paused/closed.
+ */
+export async function releaseWorkoutScreenWakeLock(): Promise<void> {
+  try {
+    if (activeWakeLock) {
+      await activeWakeLock.release();
+      activeWakeLock = null;
+    }
+  } catch {
+    activeWakeLock = null;
+  }
+}
+
+/**
+ * Starts both:
+ * 1) Screen Wake Lock (keeps screen on while exercising)
+ * 2) Silent background audio loop + MediaSession metadata (keeps timer & audio cues running
+ *    even if the user manually locks the phone screen and puts it in their pocket for 15+ minutes).
+ */
+export async function startWorkoutKeepAlive(workoutTitle?: string): Promise<boolean> {
+  const wakeLockGranted = await requestWorkoutScreenWakeLock();
+
+  try {
+    const ctx = getAudioContext();
+    if (ctx && !keepAliveOscillator) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.setValueAtTime(1, ctx.currentTime);
+      gain.gain.setValueAtTime(0.00001, ctx.currentTime);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      keepAliveOscillator = osc;
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    if (typeof window !== 'undefined' && typeof Audio !== 'undefined') {
+      if (!keepAliveAudioEl) {
+        keepAliveAudioEl = new Audio(createSilentWavDataUri());
+        keepAliveAudioEl.loop = true;
+        keepAliveAudioEl.volume = 0.01;
+      }
+      await keepAliveAudioEl.play().catch(() => {});
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && navigator.mediaSession) {
+      if (typeof MediaMetadata !== 'undefined') {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: workoutTitle || 'Άσκηση σε Εξέλιξη',
+          artist: 'KINESIS: Sit to 5K',
+          album: 'Ενεργό Χρονόμετρο Κίνησης',
+        });
+      }
+      navigator.mediaSession.playbackState = 'playing';
+    }
+  } catch {
+    // ignore
+  }
+
+  return wakeLockGranted;
+}
+
+/**
+ * Stops the Screen Wake Lock and background keep-alive audio as soon as the workout ends.
+ */
+export async function stopWorkoutKeepAlive(): Promise<void> {
+  await releaseWorkoutScreenWakeLock();
+
+  try {
+    if (keepAliveOscillator) {
+      keepAliveOscillator.stop();
+      keepAliveOscillator.disconnect();
+      keepAliveOscillator = null;
+    }
+  } catch {
+    keepAliveOscillator = null;
+  }
+
+  try {
+    if (keepAliveAudioEl) {
+      keepAliveAudioEl.pause();
+      keepAliveAudioEl.currentTime = 0;
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && navigator.mediaSession) {
+      navigator.mediaSession.playbackState = 'none';
+    }
+  } catch {
+    // ignore
+  }
+}
+

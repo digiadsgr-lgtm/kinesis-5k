@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CheckCircle2,
   ListChecks,
+  Moon,
   Pause,
   Play,
   RotateCcw,
+  ShieldCheck,
+  Smartphone,
   Sparkles,
   Volume2,
   VolumeX,
@@ -20,7 +23,12 @@ import {
   playHalfMinuteDiscreetPulse,
   playPrepCountdownTick,
   playWorkoutStartChime,
+  requestWorkoutScreenWakeLock,
+  startWorkoutKeepAlive,
+  stopWorkoutKeepAlive,
 } from '@/lib/audio/timerAudio';
+
+export const ACTIVE_TIMER_STORAGE_KEY = 'kinesis_active_workout_timer_v1';
 
 export interface ActiveTimerSession {
   title: string;
@@ -31,6 +39,15 @@ export interface ActiveTimerSession {
   structuralPointsAward: number;
   wasNegotiated: 'primary' | 'bored_swap' | 'micro_step';
   exercisesGreek?: string[];
+}
+
+export interface PersistedTimerState {
+  session: ActiveTimerSession;
+  prepEndAtMs: number;
+  workoutEndAtMs: number;
+  isRunning: boolean;
+  pausedPrepLeft: number;
+  pausedSecondsLeft: number;
 }
 
 interface SessionTimerProps {
@@ -45,12 +62,21 @@ export default function SessionTimer({
   onCancel,
 }: SessionTimerProps) {
   const totalSeconds = Math.max(60, session.durationMins * 60);
-  // 5-second pre-start countdown (5, 4, 3, 2, 1 -> 0 = workout running)
+
+  // Wall-clock deadline references so the timer NEVER stops or loses time even if the phone screen turns off!
+  const prepEndAtMsRef = useRef<number>(Date.now() + 5000);
+  const workoutEndAtMsRef = useRef<number>(Date.now() + 5000 + totalSeconds * 1000);
+  const lastFiredCueSecRef = useRef<number | null>(null);
+  const lastFiredPrepSecRef = useRef<number | null>(5);
+  const hasStartedMainRef = useRef<boolean>(false);
+
   const [prepSecondsLeft, setPrepSecondsLeft] = useState<number>(5);
   const [secondsLeft, setSecondsLeft] = useState<number>(totalSeconds);
   const [isRunning, setIsRunning] = useState<boolean>(true);
   const [isFinishing, setIsFinishing] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [wakeLockActive, setWakeLockActive] = useState<boolean>(false);
+  const [pocketDimMode, setPocketDimMode] = useState<boolean>(false);
   const [cueBanner, setCueBanner] = useState<string | null>(
     'Ετοιμάσου! Ξεκινάμε σε 5 δευτερόλεπτα με διακριτικό ήχο...'
   );
@@ -64,90 +90,203 @@ export default function SessionTimer({
     soundEnabledRef.current = soundEnabled;
   }, [soundEnabled]);
 
-  // Play initial tick on mount when 5-second prep starts
-  useEffect(() => {
-    if (soundEnabledRef.current) {
-      playPrepCountdownTick();
+  const persistTimerSnapshot = useCallback(
+    (
+      running: boolean,
+      currentPrepLeft: number,
+      currentSecLeft: number,
+      prepEndMs: number,
+      workoutEndMs: number
+    ) => {
+      if (typeof window === 'undefined') return;
+      try {
+        const payload: PersistedTimerState = {
+          session,
+          prepEndAtMs: prepEndMs,
+          workoutEndAtMs: workoutEndMs,
+          isRunning: running,
+          pausedPrepLeft: currentPrepLeft,
+          pausedSecondsLeft: currentSecLeft,
+        };
+        window.localStorage.setItem(ACTIVE_TIMER_STORAGE_KEY, JSON.stringify(payload));
+      } catch {
+        // ignore storage quota errors
+      }
+    },
+    [session]
+  );
+
+  const clearPersistedTimerSnapshot = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.removeItem(ACTIVE_TIMER_STORAGE_KEY);
+    } catch {
+      // ignore
     }
   }, []);
 
-  // 1. Handle 5-second Pre-Start Preparation Countdown
+  // Restore existing wall-clock deadlines if the mobile browser reloaded the page while in pocket
   useEffect(() => {
-    if (!isRunning || isFinishing || prepSecondsLeft <= 0) return;
-
-    const prepTimer = window.setInterval(() => {
-      setPrepSecondsLeft((prev) => {
-        if (prev <= 1) {
-          window.clearInterval(prepTimer);
-          if (soundEnabledRef.current) {
-            playWorkoutStartChime();
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as PersistedTimerState;
+        if (parsed && parsed.session?.title === session.title) {
+          const now = Date.now();
+          if (parsed.isRunning) {
+            prepEndAtMsRef.current = parsed.prepEndAtMs;
+            workoutEndAtMsRef.current = parsed.workoutEndAtMs;
+            const remPrep = Math.max(0, Math.ceil((parsed.prepEndAtMs - now) / 1000));
+            const remWork = Math.max(0, Math.ceil((parsed.workoutEndAtMs - now) / 1000));
+            setPrepSecondsLeft(remPrep);
+            setSecondsLeft(remWork);
+            if (remPrep === 0) {
+              hasStartedMainRef.current = true;
+            }
+            return;
+          } else {
+            setIsRunning(false);
+            setPrepSecondsLeft(parsed.pausedPrepLeft);
+            setSecondsLeft(parsed.pausedSecondsLeft);
+            return;
           }
-          setCueBanner('ΠΑΜΕ! Το χρονόμετρο ξεκίνησε — κινήσου ήρεμα στον ρυθμό σου.');
-          return 0;
         }
-        const nextVal = prev - 1;
+      }
+    } catch {
+      // ignore
+    }
+
+    // Fresh timer start
+    const now = Date.now();
+    prepEndAtMsRef.current = now + 5000;
+    workoutEndAtMsRef.current = now + 5000 + totalSeconds * 1000;
+    persistTimerSnapshot(true, 5, totalSeconds, prepEndAtMsRef.current, workoutEndAtMsRef.current);
+    if (soundEnabledRef.current) {
+      playPrepCountdownTick();
+    }
+  }, [session.title, totalSeconds, persistTimerSnapshot]);
+
+  // Activate Screen Wake Lock + Background Audio Keep-Alive while workout is running
+  useEffect(() => {
+    if (isRunning && !isFinishing) {
+      startWorkoutKeepAlive(session.title).then((locked) => {
+        setWakeLockActive(locked);
+      });
+    } else {
+      stopWorkoutKeepAlive();
+      setWakeLockActive(false);
+    }
+
+    return () => {
+      stopWorkoutKeepAlive();
+    };
+  }, [isRunning, isFinishing, session.title]);
+
+  // Core Wall-Clock Evaluation Function (runs every 250ms AND immediately when screen wakes up)
+  const evaluateWallClock = useCallback(() => {
+    if (!isRunning || isFinishing) return;
+
+    const now = Date.now();
+
+    // Phase 1: 5-Second Preparation Countdown
+    if (now < prepEndAtMsRef.current) {
+      const nextPrep = Math.max(1, Math.ceil((prepEndAtMsRef.current - now) / 1000));
+      setPrepSecondsLeft(nextPrep);
+      if (lastFiredPrepSecRef.current !== nextPrep) {
+        lastFiredPrepSecRef.current = nextPrep;
         if (soundEnabledRef.current) {
           playPrepCountdownTick();
         }
-        setCueBanner(`Ετοιμάσου: ${nextVal}...`);
-        return nextVal;
-      });
-    }, 1000);
+        setCueBanner(`Ετοιμάσου: ${nextPrep}...`);
+      }
+      return;
+    }
 
-    return () => window.clearInterval(prepTimer);
-  }, [isRunning, isFinishing, prepSecondsLeft]);
+    // Transition from Prep -> Main Workout Start
+    if (!hasStartedMainRef.current) {
+      hasStartedMainRef.current = true;
+      setPrepSecondsLeft(0);
+      if (soundEnabledRef.current) {
+        playWorkoutStartChime();
+      }
+      setCueBanner(
+        'ΠΑΜΕ! Το χρονόμετρο τρέχει αδιάκοπα (ακόμα κι αν κλείσεις την οθόνη ή βάλεις το κινητό στην τσέπη).'
+      );
+    }
 
-  // 2. Handle Main Workout Countdown + 30s / 60s / 3-2-1 Finale Audio Cues
+    // Phase 2: Main Workout Countdown via exact Wall-Clock timestamp
+    const nextSec = Math.max(0, Math.ceil((workoutEndAtMsRef.current - now) / 1000));
+    setSecondsLeft(nextSec);
+
+    if (nextSec <= 0) {
+      if (soundEnabledRef.current) {
+        playGrandFinaleFanfare();
+      }
+      setPocketDimMode(false);
+      setIsRunning(false);
+      setIsFinishing(true);
+      clearPersistedTimerSnapshot();
+      stopWorkoutKeepAlive();
+      return;
+    }
+
+    // Fire acoustic cues exactly once per milestone second
+    if (lastFiredCueSecRef.current !== nextSec) {
+      lastFiredCueSecRef.current = nextSec;
+
+      if (nextSec === 3 || nextSec === 2 || nextSec === 1) {
+        if (soundEnabledRef.current) {
+          playFinalThreeTwoOneBeep(nextSec);
+        }
+        setCueBanner(`Φινάλε σε ${nextSec}... Σχεδόν τελείωσες!`);
+      } else if (nextSec < totalSeconds && nextSec > 4) {
+        if (nextSec % 60 === 0) {
+          if (soundEnabledRef.current) {
+            playFullMinuteDiscreetPulse();
+          }
+          const minsDone = Math.round((totalSeconds - nextSec) / 60);
+          setCueBanner(
+            `⏱️ Ολοκληρώθηκε ${minsDone}ο λεπτό! (Διακριτικός ήχος λεπτού — συνεχίζουμε ήρεμα)`
+          );
+        } else if (nextSec % 60 === 30) {
+          if (soundEnabledRef.current) {
+            playHalfMinuteDiscreetPulse();
+          }
+          setCueBanner(
+            '🔔 30" Ρυθμός: Διακριτική υπενθύμιση ροής (Ο χρόνος συνεχίζεται κανονικά)'
+          );
+        }
+      }
+    }
+  }, [isRunning, isFinishing, totalSeconds, clearPersistedTimerSnapshot]);
+
+  // Run wall-clock check every 300ms + re-sync & re-lock screen immediately on visibilitychange / focus
   useEffect(() => {
-    if (!isRunning || isFinishing || prepSecondsLeft > 0) return;
+    if (!isRunning || isFinishing) return;
 
-    const timer = window.setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          window.clearInterval(timer);
-          if (soundEnabledRef.current) {
-            playGrandFinaleFanfare();
-          }
-          setIsRunning(false);
-          setIsFinishing(true);
-          return 0;
-        }
+    const interval = window.setInterval(evaluateWallClock, 300);
 
-        const nextSec = prev - 1;
+    const handleVisibilityOrFocus = () => {
+      evaluateWallClock();
+      if (document.visibilityState === 'visible') {
+        requestWorkoutScreenWakeLock().then((locked) => {
+          setWakeLockActive(locked);
+        });
+      }
+    };
 
-        // Final 3, 2, 1 countdown
-        if (nextSec === 3 || nextSec === 2 || nextSec === 1) {
-          if (soundEnabledRef.current) {
-            playFinalThreeTwoOneBeep(nextSec);
-          }
-          setCueBanner(`Φινάλε σε ${nextSec}... Σχεδόν τελείωσες!`);
-        } else if (nextSec < totalSeconds && nextSec > 4) {
-          // Full minute mark (:00)
-          if (nextSec % 60 === 0) {
-            if (soundEnabledRef.current) {
-              playFullMinuteDiscreetPulse();
-            }
-            const minsDone = Math.round((totalSeconds - nextSec) / 60);
-            setCueBanner(
-              `⏱️ Ολοκληρώθηκε ${minsDone}ο λεπτό! (Διακριτικός ήχος λεπτού — συνεχίζουμε ήρεμα)`
-            );
-          } else if (nextSec % 60 === 30) {
-            // Half-minute mark (:30)
-            if (soundEnabledRef.current) {
-              playHalfMinuteDiscreetPulse();
-            }
-            setCueBanner(
-              '🔔 30" Ρυθμός: Διακριτική υπενθύμιση ροής (Ο χρόνος συνεχίζεται κανονικά)'
-            );
-          }
-        }
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    window.addEventListener('pageshow', handleVisibilityOrFocus);
 
-        return nextSec;
-      });
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [isRunning, isFinishing, prepSecondsLeft, totalSeconds]);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      window.removeEventListener('pageshow', handleVisibilityOrFocus);
+    };
+  }, [isRunning, isFinishing, evaluateWallClock]);
 
   const elapsedSeconds = totalSeconds - secondsLeft;
   const progressPercent = Math.min(100, Math.round((elapsedSeconds / totalSeconds) * 100));
@@ -158,18 +297,67 @@ export default function SessionTimer({
     return `${String(mins).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
   };
 
+  const handleTogglePlayPause = () => {
+    if (isRunning) {
+      // Pause: freeze current remaining seconds
+      setIsRunning(false);
+      persistTimerSnapshot(
+        false,
+        prepSecondsLeft,
+        secondsLeft,
+        prepEndAtMsRef.current,
+        workoutEndAtMsRef.current
+      );
+    } else {
+      // Resume: compute new wall-clock deadlines from remaining seconds
+      const now = Date.now();
+      const newPrepEnd = now + prepSecondsLeft * 1000;
+      const newWorkoutEnd = newPrepEnd + secondsLeft * 1000;
+      prepEndAtMsRef.current = newPrepEnd;
+      workoutEndAtMsRef.current = newWorkoutEnd;
+      setIsRunning(true);
+      persistTimerSnapshot(true, prepSecondsLeft, secondsLeft, newPrepEnd, newWorkoutEnd);
+    }
+  };
+
+  const handleSkipPrepImmediateStart = () => {
+    const now = Date.now();
+    prepEndAtMsRef.current = now;
+    workoutEndAtMsRef.current = now + secondsLeft * 1000;
+    hasStartedMainRef.current = true;
+    setPrepSecondsLeft(0);
+    if (soundEnabled) playWorkoutStartChime();
+    setCueBanner('ΠΑΜΕ! Το χρονόμετρο ξεκίνησε.');
+    persistTimerSnapshot(true, 0, secondsLeft, now, workoutEndAtMsRef.current);
+  };
+
   const handleResetTimer = () => {
+    const now = Date.now();
+    prepEndAtMsRef.current = now + 5000;
+    workoutEndAtMsRef.current = now + 5000 + totalSeconds * 1000;
+    hasStartedMainRef.current = false;
+    lastFiredCueSecRef.current = null;
+    lastFiredPrepSecRef.current = 5;
     setPrepSecondsLeft(5);
     setSecondsLeft(totalSeconds);
     setIsRunning(true);
     setCueBanner('Επαναφορά: Ξεκινάμε σε 5 δευτερόλεπτα...');
+    persistTimerSnapshot(true, 5, totalSeconds, prepEndAtMsRef.current, workoutEndAtMsRef.current);
     if (soundEnabled) {
       playPrepCountdownTick();
     }
   };
 
+  const handleCancelTimer = () => {
+    clearPersistedTimerSnapshot();
+    stopWorkoutKeepAlive();
+    onCancel();
+  };
+
   const handleConfirmFinish = async () => {
     setIsSaving(true);
+    clearPersistedTimerSnapshot();
+    await stopWorkoutKeepAlive();
     const actualMins = Math.max(
       1,
       Math.round((elapsedSeconds > 30 ? elapsedSeconds : totalSeconds) / 60)
@@ -180,14 +368,68 @@ export default function SessionTimer({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-between overflow-y-auto bg-zinc-950/98 p-4 pb-8 text-zinc-100 backdrop-blur-lg">
+      {/* POCKET / BATTERY-SAVER BLACK SCREEN OVERLAY */}
+      {pocketDimMode && !isFinishing && (
+        <div
+          onClick={() => setPocketDimMode(false)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') setPocketDimMode(false);
+          }}
+          className="fixed inset-0 z-[60] flex cursor-pointer flex-col items-center justify-center bg-black p-6 text-center select-none"
+        >
+          <Moon className="h-8 w-8 text-emerald-500/50" />
+          <div className="mt-3 font-mono text-5xl font-bold text-emerald-400/70">
+            {prepSecondsLeft > 0 ? `00:0${prepSecondsLeft}` : formatTime(secondsLeft)}
+          </div>
+          <p className="mt-2 text-xs font-semibold text-zinc-400">
+            Λειτουργία Τσέπης / Εξοικονόμησης Μπαταρίας Ενεργή
+          </p>
+          <p className="mt-1 max-w-xs text-[11px] text-zinc-500">
+            Η άσκηση και οι ήχοι (30&quot;, 1&apos;, 3-2-1 Φινάλε) συνεχίζονται κανονικά χωρίς να
+            κλείνει η εφαρμογή.
+          </p>
+          <span className="mt-6 rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2 text-xs font-bold text-emerald-400">
+            Πάτησε οπουδήποτε στην οθόνη για επαναφορά φωτεινότητας
+          </span>
+        </div>
+      )}
+
       {/* Top Bar */}
-      <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400">
-          <Sparkles className="h-3.5 w-3.5" />
-          {MODALITY_LABELS_GREEK[session.modality]} • Χωρίς Εξοπλισμό
-        </span>
+      <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400">
+            <Sparkles className="h-3.5 w-3.5" />
+            {MODALITY_LABELS_GREEK[session.modality]} • Χωρίς Εξοπλισμό
+          </span>
+
+          {!isFinishing && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-extrabold text-emerald-300"
+              title="Η οθόνη και το χρονόμετρο παραμένουν ενεργά μέχρι να τελειώσει η άσκηση"
+            >
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+              {wakeLockActive
+                ? 'Οθόνη Ανοιχτή & Background Ενεργό'
+                : 'Αδιάκοπη Λειτουργία (Anti-Sleep Ενεργό)'}
+            </span>
+          )}
+        </div>
 
         <div className="flex items-center gap-2">
+          {!isFinishing && (
+            <button
+              type="button"
+              onClick={() => setPocketDimMode(true)}
+              className="inline-flex h-11 items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 px-3 text-xs font-bold text-zinc-200 transition hover:border-emerald-500/40"
+              title="Σβήνει τη φωτεινότητα για να βάλεις το κινητό στην τσέπη χωρίς να σταματήσει η άσκηση"
+            >
+              <Smartphone className="h-4 w-4 text-emerald-400" />
+              <span>Τσέπη</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setSoundEnabled((prev) => !prev)}
@@ -213,7 +455,7 @@ export default function SessionTimer({
 
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleCancelTimer}
             aria-label="Κλείσιμο χρονομέτρου"
             className="flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-zinc-100"
           >
@@ -230,18 +472,21 @@ export default function SessionTimer({
             {session.title}
           </h2>
 
+          {/* Anti-Sleep Reassurance Pill */}
+          <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-900/90 px-3 py-1.5 text-[11px] text-zinc-300">
+            🔒 <strong className="text-emerald-400">Δεν κλείνει η άσκηση:</strong> Το κινητό μένει
+            ενεργό μέχρι το 00:00 — κι αν κλειδώσεις την οθόνη στην τσέπη σου, ο χρόνος & οι ήχοι
+            συνεχίζουν κανονικά!
+          </div>
+
           {/* Acoustic Status / Cue Banner */}
           {cueBanner && (
-            <div className="mt-2.5 inline-flex items-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-300">
+            <div className="mt-2 inline-flex flex-wrap items-center justify-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-300">
               <span>{cueBanner}</span>
               {prepSecondsLeft > 0 && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setPrepSecondsLeft(0);
-                    if (soundEnabled) playWorkoutStartChime();
-                    setCueBanner('ΠΑΜΕ! Το χρονόμετρο ξεκίνησε.');
-                  }}
+                  onClick={handleSkipPrepImmediateStart}
                   className="ml-1 rounded-md bg-emerald-500 px-2 py-0.5 text-[10px] font-extrabold text-zinc-950"
                 >
                   Άμεση Έναρξη
@@ -309,7 +554,7 @@ export default function SessionTimer({
 
                 <button
                   type="button"
-                  onClick={() => setIsRunning((prev) => !prev)}
+                  onClick={handleTogglePlayPause}
                   className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-6 text-base font-bold text-zinc-950 shadow-lg shadow-emerald-500/20 active:scale-98"
                 >
                   {isRunning ? (
@@ -337,14 +582,14 @@ export default function SessionTimer({
                     onClick={() => playPrepCountdownTick()}
                     className="rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-left text-[10px] hover:border-emerald-500/40"
                   >
-                    • <strong>5" Έναρξη:</strong> Απαλό τικ προετοιμασίας
+                    • <strong>5&quot; Έναρξη:</strong> Απαλό τικ προετοιμασίας
                   </button>
                   <button
                     type="button"
                     onClick={() => playHalfMinuteDiscreetPulse()}
                     className="rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-left text-[10px] hover:border-emerald-500/40"
                   >
-                    • <strong>Κάθε 30":</strong> Διακριτική σταγόνα ρυθμού
+                    • <strong>Κάθε 30&quot;:</strong> Διακριτική σταγόνα ρυθμού
                   </button>
                   <button
                     type="button"
@@ -391,6 +636,8 @@ export default function SessionTimer({
             type="button"
             onClick={() => {
               if (soundEnabled) playGrandFinaleFanfare();
+              clearPersistedTimerSnapshot();
+              stopWorkoutKeepAlive();
               setIsRunning(false);
               setIsFinishing(true);
             }}

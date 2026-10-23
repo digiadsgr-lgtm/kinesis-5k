@@ -80,7 +80,11 @@ import {
 } from '@/lib/storage/cloudSync';
 import { PdfExtractionResult } from '@/lib/parser/pdfBiomarkerExtractor';
 import { SmartwatchSyncResult } from '@/lib/parser/smartwatchParser';
-import SessionTimer, { ActiveTimerSession } from '@/components/SessionTimer';
+import SessionTimer, {
+  ACTIVE_TIMER_STORAGE_KEY,
+  ActiveTimerSession,
+  PersistedTimerState,
+} from '@/components/SessionTimer';
 import GoalAndNutritionHub from '@/components/GoalAndNutritionHub';
 
 const TIME_WINDOWS = [2, 5, 10, 15, 20, 30, 45];
@@ -162,6 +166,17 @@ export default function TodayCommandCenter() {
 
   useEffect(() => {
     loadData();
+    try {
+      const savedTimerRaw = window.localStorage.getItem(ACTIVE_TIMER_STORAGE_KEY);
+      if (savedTimerRaw) {
+        const parsed = JSON.parse(savedTimerRaw) as PersistedTimerState;
+        if (parsed && parsed.session && parsed.session.title) {
+          setActiveTimer(parsed.session);
+        }
+      }
+    } catch {
+      // ignore
+    }
     const handleSyncRestored = () => {
       loadData();
     };
