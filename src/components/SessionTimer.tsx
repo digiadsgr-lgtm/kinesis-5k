@@ -239,7 +239,9 @@ export default function SessionTimer({
         if (soundEnabledRef.current) {
           playFinalThreeTwoOneBeep(nextSec);
         }
-        setCueBanner(`Φινάλε σε ${nextSec}... Σχεδόν τελείωσες!`);
+        setCueBanner(`🔴 Φινάλε σε ${nextSec}... Σχεδόν τελείωσες!`);
+      } else if (nextSec === 10) {
+        setCueBanner('🔴 Τελευταία 10 δευτερόλεπτα! Δυνατό φινάλε!');
       } else if (nextSec < totalSeconds && nextSec > 4) {
         if (nextSec % 60 === 0) {
           if (soundEnabledRef.current) {
@@ -481,7 +483,15 @@ export default function SessionTimer({
 
           {/* Acoustic Status / Cue Banner */}
           {cueBanner && (
-            <div className="mt-2 inline-flex flex-wrap items-center justify-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-semibold text-emerald-300">
+            <div
+              className={`mt-2 inline-flex flex-wrap items-center justify-center gap-2 rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-colors ${
+                prepSecondsLeft === 0 && secondsLeft <= 10
+                  ? 'border-red-500/70 bg-red-500/15 text-red-600 dark:text-red-300'
+                  : prepSecondsLeft === 0 && secondsLeft <= 30
+                  ? 'border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                  : 'border-emerald-500/45 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+              }`}
+            >
               <span>{cueBanner}</span>
               {prepSecondsLeft > 0 && (
                 <button
@@ -496,50 +506,109 @@ export default function SessionTimer({
           )}
 
           <div className="mt-4 grid w-full grid-cols-1 items-center gap-5 md:grid-cols-12">
-            {/* Left / Top: Large Readable Countdown Circle & Controls */}
+            {/* Left / Top: Large Readable Color-Coded Countdown Circle (Green -> Orange -> Red last 10s) */}
             <div className="flex flex-col items-center md:col-span-5">
               <div
-                className={`relative my-3 flex h-48 w-48 flex-col items-center justify-center rounded-full border-4 bg-zinc-900/80 shadow-2xl transition-all ${
+                className={`relative my-2 flex h-52 w-52 flex-col items-center justify-center rounded-full border-4 shadow-2xl transition-all duration-300 ${
                   prepSecondsLeft > 0
-                    ? 'border-amber-400/80'
-                    : secondsLeft <= 3
-                    ? 'scale-105 border-emerald-400'
-                    : 'border-zinc-800'
+                    ? 'border-amber-400/85 bg-amber-500/10'
+                    : secondsLeft <= 10
+                    ? 'scale-105 border-red-600 bg-red-500/15 shadow-red-500/30 animate-pulse'
+                    : secondsLeft <= 30
+                    ? 'border-amber-500 bg-amber-500/10 shadow-amber-500/20'
+                    : 'border-green-600 bg-green-500/10 shadow-green-500/20'
                 }`}
               >
                 <div
-                  className="absolute inset-0 rounded-full border-4 border-emerald-500/80 transition-all duration-500"
+                  className={`absolute inset-0 rounded-full border-4 transition-all duration-500 ${
+                    prepSecondsLeft > 0
+                      ? 'border-amber-500'
+                      : secondsLeft <= 10
+                      ? 'border-red-600'
+                      : secondsLeft <= 30
+                      ? 'border-amber-500'
+                      : 'border-green-500'
+                  }`}
                   style={{
                     clipPath: `inset(${100 - progressPercent}% 0 0 0)`,
                   }}
                 />
                 {prepSecondsLeft > 0 ? (
                   <>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                       Έναρξη σε
                     </span>
-                    <span className="font-mono text-5xl font-extrabold text-amber-300">
+                    <span className="font-mono text-5xl font-extrabold text-amber-600 dark:text-amber-300">
                       {prepSecondsLeft}
                     </span>
-                    <span className="mt-1 text-[11px] font-medium text-zinc-300">
+                    <span className="mt-1 text-[11px] font-semibold text-zinc-300">
                       Πάρε θέση...
                     </span>
                   </>
                 ) : (
                   <>
-                    {secondsLeft <= 3 && secondsLeft > 0 && (
-                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400">
-                        Φινάλε {secondsLeft}!
-                      </span>
-                    )}
-                    <span className="font-mono text-4xl font-bold tracking-tight text-zinc-50">
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${
+                        secondsLeft <= 10
+                          ? 'bg-red-600 text-white'
+                          : secondsLeft <= 30
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-green-600 text-white'
+                      }`}
+                    >
+                      {secondsLeft <= 10
+                        ? `🔴 ΛΗΞΗ ΣΕ ${secondsLeft}"!`
+                        : secondsLeft <= 30
+                        ? '🟠 ΤΕΛΙΚΗ ΕΥΘΕΙΑ'
+                        : '🟢 ΣΕ ΕΞΕΛΙΞΗ'}
+                    </span>
+
+                    <span
+                      className={`mt-1 font-mono text-4xl font-extrabold tracking-tight sm:text-5xl ${
+                        secondsLeft <= 10
+                          ? 'text-red-600 dark:text-red-400'
+                          : secondsLeft <= 30
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-green-700 dark:text-green-400'
+                      }`}
+                    >
                       {formatTime(secondsLeft)}
                     </span>
-                    <span className="mt-1 text-xs font-medium text-zinc-400">
-                      {isRunning ? 'Σε εξέλιξη • Με τον ρυθμό σου' : 'Σε παύση'}
+
+                    <span className="mt-1 text-xs font-semibold text-zinc-400">
+                      {isRunning
+                        ? secondsLeft <= 10
+                          ? 'Κόκκινη Ζώνη Φινάλε (10")'
+                          : secondsLeft <= 30
+                          ? 'Πλησιάζουμε στη λήξη'
+                          : 'Πράσινη Ζώνη Ροής'
+                        : 'Σε παύση'}
                     </span>
                   </>
                 )}
+              </div>
+
+              {/* Color-Coded Linear Progress Bar & Zone Legend */}
+              <div className="mb-2 w-full max-w-[230px]">
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-800">
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      prepSecondsLeft > 0
+                        ? 'bg-amber-500'
+                        : secondsLeft <= 10
+                        ? 'bg-red-600'
+                        : secondsLeft <= 30
+                        ? 'bg-amber-500'
+                        : 'bg-green-600'
+                    }`}
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <div className="mt-1 flex items-center justify-between text-[10px] font-bold text-zinc-400">
+                  <span className="text-green-700 dark:text-green-400">🟢 Αρχή: Πράσινο</span>
+                  <span className="text-amber-600 dark:text-amber-400">🟠 30&quot;</span>
+                  <span className="text-red-600 dark:text-red-400">🔴 10&quot; Λήξη: Κόκκινο</span>
+                </div>
               </div>
 
               <div className="mt-2 flex w-full items-center justify-center gap-3">

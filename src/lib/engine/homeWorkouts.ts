@@ -94,6 +94,110 @@ export interface LifeScenarioPreset {
   };
 }
 
+export type CustomMoodPacing = 'gentle' | 'balanced' | 'energized';
+export type CustomSpaceContext =
+  | 'home_comfortable'
+  | 'office_discrete'
+  | 'tiny_space_2m'
+  | 'outdoor_sport';
+
+export interface ProtocolCustomizationParams {
+  durationMins: number | 'auto';
+  moodPacing: CustomMoodPacing;
+  spaceContext: CustomSpaceContext;
+}
+
+export const CUSTOM_MOOD_LABELS: Record<CustomMoodPacing, string> = {
+  gentle: '🌱 Ήπια & Ξεκούραστα (Χαμηλή Ενέργεια)',
+  balanced: '🙂 Κανονικός Ρυθμός',
+  energized: '⚡ Δυναμικά & Αθλητικά',
+};
+
+export const CUSTOM_SPACE_LABELS: Record<CustomSpaceContext, string> = {
+  home_comfortable: '🛋️ Σπίτι (Παντόφλα / Πιτζάμες)',
+  office_discrete: '💼 Γραφείο (Ρούχα Δουλειάς • Χωρίς Ίδρωμα)',
+  tiny_space_2m: '📏 Μικρός Χώρος (2m²)',
+  outdoor_sport: '🌳 Άνετος Χώρος / Αθλητικά',
+};
+
+/**
+ * Dynamically adapts any specialist or scenario protocol to the user's selected
+ * Time (minutes), Mood/Energy pacing, and Space/Attire context.
+ */
+export function customizeProtocolForUser(
+  protocol: HomeWorkoutProtocol,
+  params: ProtocolCustomizationParams
+): HomeWorkoutProtocol {
+  const targetMins =
+    params.durationMins === 'auto' ? protocol.durationMins : Math.max(2, params.durationMins);
+  const cleanTitle = protocol.titleGreek.replace(/^\d+'\s*/, '');
+  const adaptedTitle = `${targetMins}' ${cleanTitle}`;
+
+  const moodTagGreek =
+    params.moodPacing === 'gentle'
+      ? 'Αργός & Ήρεμος Ρυθμός'
+      : params.moodPacing === 'energized'
+      ? 'Δυναμική Ροή'
+      : 'Ισορροπημένος Ρυθμός';
+
+  const spaceTagGreek =
+    params.spaceContext === 'office_discrete'
+      ? 'Γραφείο (Χωρίς Ίδρωμα)'
+      : params.spaceContext === 'tiny_space_2m'
+      ? 'Σε 2m² Χώρο'
+      : params.spaceContext === 'outdoor_sport'
+      ? 'Άνετος Χώρος'
+      : 'Σπίτι / Παντόφλα';
+
+  const adaptedIntensity = `${targetMins} Λεπτά • ${moodTagGreek} • ${spaceTagGreek}`;
+
+  const stepCount = Math.max(1, protocol.exercisesGreek.length);
+  const minsPerStep = Math.max(0.5, Math.round((targetMins / stepCount) * 10) / 10);
+  const stepTimeText =
+    minsPerStep < 1 ? `${Math.round(minsPerStep * 60)} δευτ.` : `${minsPerStep} λεπτά`;
+
+  const adaptedExercises = protocol.exercisesGreek.map((ex, idx) => {
+    const stripped = ex.replace(/^Βήμα\s*\d+\s*(\([^)]*\))?\s*[:—-]?\s*/i, '');
+    return `Βήμα ${idx + 1} (~${stepTimeText}): ${stripped}`;
+  });
+
+  const coachingAdjustmentParts: string[] = [];
+  if (params.moodPacing === 'gentle') {
+    coachingAdjustmentParts.push(
+      'Εκτέλεσε τις κινήσεις στο 60% του εύρους, αργά και με βαθιές εκπνοές χωρίς καμία πίεση.'
+    );
+  } else if (params.moodPacing === 'energized') {
+    coachingAdjustmentParts.push(
+      'Διατήρησε συνεχή ρυθμική ροή ανάμεσα στα βήματα με ενεργό κορμό.'
+    );
+  }
+  if (params.spaceContext === 'office_discrete') {
+    coachingAdjustmentParts.push(
+      'Όλες οι κινήσεις γίνονται όρθιες και διακριτικές με ρούχα γραφείου χωρίς να ιδρώσεις.'
+    );
+  } else if (params.spaceContext === 'tiny_space_2m') {
+    coachingAdjustmentParts.push(
+      'Προσαρμογή 2m²: Κάνε όλα τα βήματα επιτόπου (στη θέση σου) χωρίς μετακίνηση στον χώρο.'
+    );
+  }
+
+  if (coachingAdjustmentParts.length > 0) {
+    adaptedExercises.push(`⚙️ Προσαρμογή στα μέτρα σου: ${coachingAdjustmentParts.join(' ')}`);
+  }
+
+  const ratio = targetMins / Math.max(1, protocol.durationMins);
+  const adaptedStructural = Math.max(2, Math.round(protocol.structuralPointsAward * ratio));
+
+  return {
+    ...protocol,
+    titleGreek: adaptedTitle,
+    durationMins: targetMins,
+    intensityLabel: adaptedIntensity,
+    exercisesGreek: adaptedExercises,
+    structuralPointsAward: adaptedStructural,
+  };
+}
+
 export const HOME_WORKOUT_CATEGORY_LABELS: Record<HomeWorkoutCategory, string> = {
   physiatry_rehab: '🩺 Φυσίατροι (Μέση, Αυχένας & Στάση)',
   orthopedics_joints: '🦴 Ορθοπεδικοί (Γόνατα, Ισχία & Τένοντες)',

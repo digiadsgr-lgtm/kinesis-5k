@@ -10,7 +10,11 @@ import {
   extractTextFromPdfBuffer,
   parseBiomarkersFromText,
 } from '@/lib/parser/pdfBiomarkerExtractor';
-import { HOME_WORKOUT_PROTOCOLS, LIFE_SCENARIO_PRESETS } from './homeWorkouts';
+import {
+  customizeProtocolForUser,
+  HOME_WORKOUT_PROTOCOLS,
+  LIFE_SCENARIO_PRESETS,
+} from './homeWorkouts';
 import {
   createSampleSmartwatchTcx,
   parseSmartwatchRawContent,
@@ -723,6 +727,19 @@ describe('KINESIS Rules Engine (recommender.ts)', () => {
       );
       expect(rheumRec.title).toContain('Πρωτόκολλο Ρευματολόγου');
       expect(rheumRec.whatWeAchieveGreek).toContain('αρθρικό υγρό');
+
+      const adapted = customizeProtocolForUser(HOME_WORKOUT_PROTOCOLS[0], {
+        durationMins: 10,
+        moodPacing: 'gentle',
+        spaceContext: 'office_discrete',
+      });
+      expect(adapted.durationMins).toBe(10);
+      expect(adapted.titleGreek.startsWith("10'")).toBe(true);
+      expect(adapted.intensityLabel).toContain('Αργός & Ήρεμος Ρυθμός');
+      expect(adapted.intensityLabel).toContain('Γραφείο (Χωρίς Ίδρωμα)');
+      expect(adapted.exercisesGreek.some((s) => s.includes('Προσαρμογή στα μέτρα σου'))).toBe(
+        true
+      );
     });
   });
 });

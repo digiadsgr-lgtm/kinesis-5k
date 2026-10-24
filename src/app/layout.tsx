@@ -49,7 +49,7 @@ export default function RootLayout({
   return (
     <html
       lang="el"
-      className={`dark ${inter.variable} ${jetbrainsMono.variable}`}
+      className={`light ${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-zinc-950 font-sans text-zinc-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
         <Navigation />

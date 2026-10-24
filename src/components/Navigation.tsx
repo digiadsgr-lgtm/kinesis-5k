@@ -19,12 +19,12 @@ export type ThemeMode = 'dark' | 'light';
 const THEME_STORAGE_KEY = 'kinesis_eye_comfort_theme_v1';
 
 export function getInitialTheme(): ThemeMode {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'light';
   const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
   if (saved === 'light' || saved === 'dark') return saved;
-  // Circadian default: 07:00 - 19:00 warm daylight, otherwise soothing night slate
+  // Circadian default: 06:00 - 20:00 crisp white/black daylight, otherwise soothing night slate
   const hour = new Date().getHours();
-  return hour >= 7 && hour < 19 ? 'light' : 'dark';
+  return hour >= 6 && hour < 20 ? 'light' : 'dark';
 }
 
 export function applyThemeToDocument(mode: ThemeMode) {
@@ -130,26 +130,56 @@ export default function Navigation() {
               onClick={toggleTheme}
               title={
                 theme === 'dark'
-                  ? 'Εναλλαγή σε Ξεκούραστη Λειτουργία Ημέρας'
-                  : 'Εναλλαγή σε Ξεκούραστη Λειτουργία Νύχτας'
+                  ? 'Εναλλαγή σε Λειτουργία Ημέρας (Άσπρο φόντο / Μαύρα γράμματα)'
+                  : 'Εναλλαγή σε Λειτουργία Νύχτας (Σκούρο φόντο)'
               }
               className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-bold text-zinc-200 transition hover:border-emerald-500/40"
             >
-              {theme === 'dark' ? (
+              {theme === 'light' ? (
                 <>
-                  <Sun className="h-4 w-4 text-amber-400" />
-                  <span>Μέρα</span>
+                  <Sun className="h-4 w-4 text-amber-500" />
+                  <span>☀️ Μέρα (Άσπρο/Μαύρο)</span>
                 </>
               ) : (
                 <>
                   <Moon className="h-4 w-4 text-emerald-400" />
-                  <span>Νύχτα</span>
+                  <span>🌙 Νύχτα</span>
                 </>
               )}
             </button>
           </div>
         </div>
       </header>
+
+      {/* Compact Mobile Top Bar with Day/Night Switcher (below md) */}
+      <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950 px-3 py-2 md:hidden">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-zinc-950">
+            <Zap className="h-4 w-4 fill-current" />
+          </div>
+          <span className="text-xs font-extrabold tracking-tight text-zinc-50">
+            KINESIS <span className="text-emerald-400">5K</span>
+          </span>
+        </Link>
+
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-[11px] font-bold text-zinc-100 active:scale-95"
+        >
+          {theme === 'light' ? (
+            <>
+              <Sun className="h-3.5 w-3.5 text-amber-500" />
+              <span>☀️ Μέρα (Άσπρο/Μαύρο)</span>
+            </>
+          ) : (
+            <>
+              <Moon className="h-3.5 w-3.5 text-emerald-400" />
+              <span>🌙 Νύχτα</span>
+            </>
+          )}
+        </button>
+      </div>
 
       {/* Mobile Bottom Thumb-Reach Navigation Bar (below md) */}
       <nav
