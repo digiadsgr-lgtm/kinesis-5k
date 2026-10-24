@@ -1,5 +1,5 @@
-const CACHE_NAME = "kinesis-v1.1";
-const STATIC_ASSETS = ["/", "/log", "/health", "/progress", "/settings", "/manifest.json", "/icon.svg"];
+const CACHE_NAME = "kinesis-v5.0";
+const STATIC_ASSETS = ["/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

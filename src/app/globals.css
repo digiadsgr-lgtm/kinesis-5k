@@ -12,6 +12,42 @@
  */
 
 :root,
+html.light {
+  color-scheme: light;
+
+  /* Day Surfaces & Ink (DEFAULT): Pure White Background (#FFFFFF), Pure Black Descriptions (#000000), Intense Dark Grey Explanations (#1E293B / #334155) */
+  --c-zinc-950: 255 255 255; /* #FFFFFF - Pure white background */
+  --c-zinc-900: 255 255 255; /* #FFFFFF - Pure white card surface */
+  --c-zinc-800: 226 232 240; /* #E2E8F0 - Crisp slate border & secondary pill surface */
+  --c-zinc-700: 148 163 184; /* #94A3B8 - Strong interactive border */
+  --c-zinc-600: 71 85 105;   /* #475569 - Strong slate grey */
+  --c-zinc-500: 51 65 85;    /* #334155 - Intense dark grey for clarifications & captions */
+  --c-zinc-400: 30 41 59;    /* #1E293B - Deep intense charcoal grey for exercise explanations */
+  --c-zinc-300: 15 23 42;    /* #0F172A - Near-black for secondary descriptions */
+  --c-zinc-200: 0 0 0;       /* #000000 - Pure black for descriptions & steps */
+  --c-zinc-100: 0 0 0;       /* #000000 - Pure black primary ink */
+  --c-zinc-50: 0 0 0;        /* #000000 - Pure black heading ink */
+
+  /* Day High-Contrast Emerald Accents on White */
+  --c-emerald-500: 16 148 104; /* #109468 - Crisp emerald action fill */
+  --c-emerald-400: 6 95 70;    /* #065F46 - Deep dark-emerald label text on white */
+  --c-emerald-300: 6 78 59;    /* #064E3B - Very dark emerald for badges */
+  --c-emerald-200: 30 41 59;   /* #1E293B - Intense dark grey for physiology/explanation notes */
+  --c-emerald-100: 0 0 0;      /* #000000 - Pure black inside light banners */
+
+  /* Day High-Contrast Amber Alerts on White */
+  --c-amber-500: 217 119 6;
+  --c-amber-400: 146 64 14;
+  --c-amber-300: 120 53 15;
+  --c-amber-200: 30 41 59;     /* #1E293B - Intense dark grey for alert explanations */
+  --c-amber-100: 0 0 0;        /* #000000 - Pure black for alert descriptions */
+
+  --k-shadow-card: 0 8px 24px -6px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(148, 163, 184, 0.35);
+  --k-range-track: #cbd5e1;
+  --k-range-thumb: #109468;
+  --k-range-border: #ffffff;
+}
+
 html.dark {
   color-scheme: dark;
 
@@ -46,42 +82,6 @@ html.dark {
   --k-range-track: #24333b;
   --k-range-thumb: #16b98a;
   --k-range-border: #10181c;
-}
-
-html.light {
-  color-scheme: light;
-
-  /* Day Surfaces & Ink: Pure White Background (#FFFFFF), Pure Black Descriptions (#000000), Intense Dark Grey Explanations (#1E293B / #334155) */
-  --c-zinc-950: 255 255 255; /* #FFFFFF - Pure white background */
-  --c-zinc-900: 255 255 255; /* #FFFFFF - Pure white card surface */
-  --c-zinc-800: 226 232 240; /* #E2E8F0 - Crisp slate border & secondary pill surface */
-  --c-zinc-700: 148 163 184; /* #94A3B8 - Strong interactive border */
-  --c-zinc-600: 71 85 105;   /* #475569 - Strong slate grey */
-  --c-zinc-500: 51 65 85;    /* #334155 - Intense dark grey for clarifications & captions */
-  --c-zinc-400: 30 41 59;    /* #1E293B - Deep intense charcoal grey for exercise explanations */
-  --c-zinc-300: 15 23 42;    /* #0F172A - Near-black for secondary descriptions */
-  --c-zinc-200: 0 0 0;       /* #000000 - Pure black for descriptions & steps */
-  --c-zinc-100: 0 0 0;       /* #000000 - Pure black primary ink */
-  --c-zinc-50: 0 0 0;        /* #000000 - Pure black heading ink */
-
-  /* Day High-Contrast Emerald Accents on White */
-  --c-emerald-500: 16 148 104; /* #109468 - Crisp emerald action fill */
-  --c-emerald-400: 6 95 70;    /* #065F46 - Deep dark-emerald label text on white */
-  --c-emerald-300: 6 78 59;    /* #064E3B - Very dark emerald for badges */
-  --c-emerald-200: 30 41 59;   /* #1E293B - Intense dark grey for physiology/explanation notes */
-  --c-emerald-100: 0 0 0;      /* #000000 - Pure black inside light banners */
-
-  /* Day High-Contrast Amber Alerts on White */
-  --c-amber-500: 217 119 6;
-  --c-amber-400: 146 64 14;
-  --c-amber-300: 120 53 15;
-  --c-amber-200: 30 41 59;     /* #1E293B - Intense dark grey for alert explanations */
-  --c-amber-100: 0 0 0;        /* #000000 - Pure black for alert descriptions */
-
-  --k-shadow-card: 0 8px 24px -6px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(148, 163, 184, 0.35);
-  --k-range-track: #cbd5e1;
-  --k-range-thumb: #109468;
-  --k-range-border: #ffffff;
 }
 
 html {
@@ -127,13 +127,28 @@ code {
   overflow-wrap: anywhere;
 }
 
-/* Ensure primary emerald-500 buttons always have crisp white/light text in Day Mode and dark ink in Night Mode */
+/* Ensure primary emerald-500 buttons always have crisp white text in Day Mode */
+:root:not(.dark) .bg-emerald-500,
 html.light .bg-emerald-500 {
   color: #ffffff !important;
 }
 
 /* Day Mode: Pure White backgrounds, Pure Black descriptions, Intense Dark Grey explanations/clarifications */
+:root:not(.dark) body,
+:root:not(.dark) main,
+:root:not(.dark) section,
+:root:not(.dark) header,
+:root:not(.dark) .bg-zinc-950,
+:root:not(.dark) .bg-zinc-950\/95,
+:root:not(.dark) .bg-zinc-950\/98,
+:root:not(.dark) .bg-zinc-900,
+:root:not(.dark) .bg-zinc-900\/95,
+:root:not(.dark) .bg-zinc-900\/90,
+:root:not(.dark) .bg-zinc-900\/80,
 html.light body,
+html.light main,
+html.light section,
+html.light header,
 html.light .bg-zinc-950,
 html.light .bg-zinc-950\/95,
 html.light .bg-zinc-950\/98,
@@ -144,8 +159,27 @@ html.light .bg-zinc-900\/80 {
   background-color: #ffffff !important;
 }
 
+:root:not(.dark) .bg-zinc-950\/60,
+:root:not(.dark) .bg-zinc-900\/70,
+:root:not(.dark) .bg-zinc-800\/90,
+:root:not(.dark) .bg-emerald-500\/5,
+:root:not(.dark) .bg-emerald-500\/10,
+:root:not(.dark) .bg-indigo-950\/20,
+:root:not(.dark) .bg-indigo-950\/25,
+:root:not(.dark) .bg-indigo-950\/30,
+:root:not(.dark) .bg-cyan-950\/20,
+:root:not(.dark) .bg-cyan-950\/25,
+:root:not(.dark) .bg-cyan-950\/30,
+:root:not(.dark) .bg-violet-950\/20,
+:root:not(.dark) .bg-violet-950\/25,
+:root:not(.dark) .bg-violet-950\/30,
+:root:not(.dark) .bg-rose-950\/20,
+:root:not(.dark) .bg-rose-950\/30,
 html.light .bg-zinc-950\/60,
 html.light .bg-zinc-900\/70,
+html.light .bg-zinc-800\/90,
+html.light .bg-emerald-500\/5,
+html.light .bg-emerald-500\/10,
 html.light .bg-indigo-950\/20,
 html.light .bg-indigo-950\/25,
 html.light .bg-indigo-950\/30,
@@ -160,15 +194,50 @@ html.light .bg-rose-950\/30 {
   background-color: #f8fafc !important;
 }
 
+/* Pure Black (#000000) for all descriptions, headings, titles & exercise steps in Day Mode */
+:root:not(.dark) h1,
+:root:not(.dark) h2,
+:root:not(.dark) h3,
+:root:not(.dark) h4,
+:root:not(.dark) ol li,
+:root:not(.dark) .text-zinc-50,
+:root:not(.dark) .text-zinc-100,
+:root:not(.dark) .text-zinc-200,
+html.light h1,
+html.light h2,
+html.light h3,
+html.light h4,
+html.light ol li,
 html.light .text-zinc-50,
 html.light .text-zinc-100,
 html.light .text-zinc-200 {
   color: #000000 !important;
 }
 
+/* Intense Dark Grey (#334155) for all exercise explanations, physiology notes & clarifications in Day Mode */
+:root:not(.dark) .text-zinc-300,
+:root:not(.dark) .text-zinc-400,
+:root:not(.dark) .text-zinc-500,
+:root:not(.dark) .text-emerald-200,
+:root:not(.dark) .text-emerald-200\/95,
+:root:not(.dark) .text-emerald-200\/80,
+:root:not(.dark) .text-emerald-300,
+:root:not(.dark) .text-indigo-100,
+:root:not(.dark) .text-indigo-200,
+:root:not(.dark) .text-indigo-300,
+:root:not(.dark) .text-cyan-100,
+:root:not(.dark) .text-cyan-200,
+:root:not(.dark) .text-cyan-300,
+:root:not(.dark) .text-violet-100,
+:root:not(.dark) .text-violet-200,
+:root:not(.dark) .text-violet-300,
 html.light .text-zinc-300,
 html.light .text-zinc-400,
 html.light .text-zinc-500,
+html.light .text-emerald-200,
+html.light .text-emerald-200\/95,
+html.light .text-emerald-200\/80,
+html.light .text-emerald-300,
 html.light .text-indigo-100,
 html.light .text-indigo-200,
 html.light .text-indigo-300,
@@ -179,7 +248,7 @@ html.light .text-violet-100,
 html.light .text-violet-200,
 html.light .text-violet-300 {
   color: #334155 !important;
-  font-weight: 500;
+  font-weight: 600 !important;
 }
 
 /* Soft elevated card shadows */

@@ -16,18 +16,23 @@ import { useEffect, useState } from 'react';
 
 export type ThemeMode = 'dark' | 'light';
 
-const THEME_STORAGE_KEY = 'kinesis_eye_comfort_theme_v1';
+const THEME_STORAGE_KEY = 'kinesis_theme_day_white_v5';
 
 export function getInitialTheme(): ThemeMode {
   if (typeof window === 'undefined') return 'light';
-  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (saved === 'light' || saved === 'dark') return saved;
-  // Circadian default: 06:00 - 20:00 crisp white/black daylight, otherwise soothing night slate
-  const hour = new Date().getHours();
-  return hour >= 6 && hour < 20 ? 'light' : 'dark';
+  try {
+    // Purge legacy dark-locked key from earlier versions
+    window.localStorage.removeItem('kinesis_eye_comfort_theme_v1');
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch {
+    // ignore
+  }
+  // Always default to Crisp White/Black/Dark-Grey Day Mode unless user explicitly chose Night Mode
+  return 'light';
 }
 
-export function applyThemeToDocument(mode: ThemeMode) {
+export function applyThemeToDocument(mode: ThemeMode, persistChoice = false) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
   if (mode === 'light') {
@@ -38,7 +43,9 @@ export function applyThemeToDocument(mode: ThemeMode) {
     root.classList.add('dark');
   }
   if (typeof window !== 'undefined' && 'localStorage' in window) {
-    window.localStorage.setItem(THEME_STORAGE_KEY, mode);
+    if (persistChoice) {
+      window.localStorage.setItem(THEME_STORAGE_KEY, mode);
+    }
     window.dispatchEvent(new CustomEvent('kinesis-theme-change', { detail: mode }));
   }
 }
@@ -53,15 +60,34 @@ const NAV_ITEMS = [
 
 export default function Navigation() {
   const pathname = usePathname();
-  const [theme, setTheme] = useState<ThemeMode>('dark');
+  const [theme, setTheme] = useState<ThemeMode>('light');
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    if (typeof window !== 'undefined') {
+      if ('caches' in window) {
+        window.caches
+          .keys()
+          .then((keys) => {
+            keys.forEach((k) => {
+              if (k !== 'kinesis-v5.0') {
+                window.caches.delete(k).catch(() => {});
+              }
+            });
+          })
+          .catch(() => {});
+      }
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then((reg) => {
+            reg.update().catch(() => {});
+          })
+          .catch(() => {});
+      }
     }
     const initial = getInitialTheme();
     setTheme(initial);
-    applyThemeToDocument(initial);
+    applyThemeToDocument(initial, false);
 
     const onThemeChange = (e: Event) => {
       const custom = e as CustomEvent<ThemeMode>;
@@ -74,7 +100,7 @@ export default function Navigation() {
   const toggleTheme = () => {
     const next: ThemeMode = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
-    applyThemeToDocument(next);
+    applyThemeToDocument(next, true);
   };
 
   return (
